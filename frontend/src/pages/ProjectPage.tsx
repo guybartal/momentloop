@@ -501,6 +501,7 @@ export default function ProjectPage() {
                 <ImageUploader
                   projectId={projectId!}
                   onUploadComplete={handleUploadComplete}
+                  onPhotosImported={loadProject}
                 />
               </section>
 

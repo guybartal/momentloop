@@ -1,8 +1,9 @@
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,11 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
+# Basic scopes for login
+LOGIN_SCOPES = "openid email profile"
+# Google Photos Picker API scope (the old photoslibrary scopes were removed April 2025)
+PHOTOS_SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
+
 
 @router.get("/google")
 async def google_login():
@@ -28,12 +34,29 @@ async def google_login():
         "client_id": settings.google_client_id,
         "redirect_uri": settings.google_redirect_uri,
         "response_type": "code",
-        "scope": "openid email profile",
+        "scope": LOGIN_SCOPES,
         "access_type": "offline",
         "prompt": "consent",
     }
     url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
     return RedirectResponse(url=url)
+
+
+@router.get("/google/photos")
+async def google_photos_auth(current_user: User = Depends(get_current_user)):
+    """Redirect to Google OAuth with Photos scope for importing photos."""
+    # Include Photos scope along with basic scopes
+    params = {
+        "client_id": settings.google_client_id,
+        "redirect_uri": settings.google_redirect_uri.replace("/callback", "/callback/photos"),
+        "response_type": "code",
+        "scope": f"{LOGIN_SCOPES} {PHOTOS_SCOPE}",
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": str(current_user.id),  # Pass user ID to link tokens
+    }
+    url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
+    return {"auth_url": url}
 
 
 @router.get("/callback")
@@ -63,6 +86,8 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
 
         tokens = token_response.json()
         access_token = tokens.get("access_token")
+        refresh_token = tokens.get("refresh_token")
+        expires_in = tokens.get("expires_in", 3600)
 
         # Get user info from Google
         userinfo_response = await client.get(
@@ -102,8 +127,12 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
             )
             db.add(user)
 
-        await db.commit()
-        await db.refresh(user)
+    # Note: We don't store access tokens from regular login here
+    # because they don't have Photos scope. Tokens are only stored
+    # when user explicitly authorizes Photos access via /google/photos
+
+    await db.commit()
+    await db.refresh(user)
 
     # Create JWT token
     jwt_token = create_access_token(data={"sub": str(user.id)})
@@ -111,6 +140,169 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     # Redirect to frontend with token
     frontend_url = settings.cors_origins[0] if settings.cors_origins else "http://localhost:5173"
     return RedirectResponse(url=f"{frontend_url}/login?token={jwt_token}")
+
+
+@router.get("/callback/photos")
+async def google_photos_callback(
+    code: str,
+    state: str,
+    scope: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle Google OAuth callback with Photos scope."""
+    # Log the granted scopes
+    print(f"Photos callback - Granted scopes: {scope}")
+
+    # Check if photos scope was actually granted
+    if scope and "photoslibrary" not in scope:
+        print("WARNING: Photos scope was NOT granted by user!")
+
+    # Exchange code for tokens
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": settings.google_redirect_uri.replace("/callback", "/callback/photos"),
+            },
+        )
+
+        if token_response.status_code != 200:
+            print(f"Photos token exchange failed: {token_response.status_code}")
+            print(f"Response: {token_response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to exchange code for token: {token_response.text}",
+            )
+
+        tokens = token_response.json()
+        access_token = tokens.get("access_token")
+        refresh_token = tokens.get("refresh_token")
+        expires_in = tokens.get("expires_in", 3600)
+        token_scope = tokens.get("scope", "")
+
+        print(f"Token exchange successful!")
+        print(f"Token scope from response: {token_scope}")
+        print(f"Access token (first 50 chars): {access_token[:50] if access_token else 'None'}")
+
+    # Update user with new tokens
+    result = await db.execute(select(User).where(User.id == state))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user.google_access_token = access_token
+    if refresh_token:
+        user.google_refresh_token = refresh_token
+    user.google_token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+    await db.commit()
+
+    # Return HTML that closes the popup window
+    close_popup_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Photos Connected</title>
+    </head>
+    <body>
+        <script>
+            // Signal to opener that connection is complete
+            if (window.opener) {
+                window.opener.postMessage({ type: 'google_photos_connected' }, '*');
+            }
+            // Close the popup
+            window.close();
+            // Fallback if popup doesn't close (e.g., not opened as popup)
+            setTimeout(function() {
+                document.body.innerHTML = '<p style="font-family: sans-serif; text-align: center; margin-top: 50px;">Google Photos connected! You can close this window.</p>';
+            }, 500);
+        </script>
+        <p style="font-family: sans-serif; text-align: center; margin-top: 50px;">Connecting...</p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=close_popup_html)
+
+
+@router.get("/google/photos/status")
+async def google_photos_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if user has Google Photos access."""
+    has_token = bool(current_user.google_access_token)
+    token_expired = False
+
+    if current_user.google_token_expiry:
+        token_expired = current_user.google_token_expiry < datetime.now(timezone.utc)
+
+    if not has_token or token_expired:
+        # Try to refresh if we have a refresh token
+        if current_user.google_refresh_token and token_expired:
+            new_token = await refresh_google_token(current_user, db)
+            if not new_token:
+                return {
+                    "connected": False,
+                    "has_refresh_token": True,
+                    "needs_reauth": True,
+                }
+            # Token refreshed successfully
+            return {
+                "connected": True,
+                "has_refresh_token": True,
+                "needs_reauth": False,
+            }
+        else:
+            return {
+                "connected": False,
+                "has_refresh_token": bool(current_user.google_refresh_token),
+                "needs_reauth": True,
+            }
+
+    # Token exists and is not expired - trust it
+    # (We previously verified API access but Google APIs can have propagation delays)
+    return {
+        "connected": True,
+        "has_refresh_token": bool(current_user.google_refresh_token),
+        "needs_reauth": False,
+    }
+
+
+async def refresh_google_token(user: User, db: AsyncSession) -> str | None:
+    """Refresh the Google access token using refresh token."""
+    if not user.google_refresh_token:
+        return None
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "refresh_token": user.google_refresh_token,
+                "grant_type": "refresh_token",
+            },
+        )
+
+        if response.status_code != 200:
+            print(f"Token refresh failed: {response.text}")
+            return None
+
+        tokens = response.json()
+        user.google_access_token = tokens.get("access_token")
+        expires_in = tokens.get("expires_in", 3600)
+        user.google_token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+        await db.commit()
+        return user.google_access_token
 
 
 @router.get("/me", response_model=UserResponse)

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, export, photos, projects, styles, videos
+from app.api.routes import auth, export, google_photos, photos, projects, styles, videos
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -44,6 +44,7 @@ app.include_router(photos.router, prefix="/api", tags=["Photos"])
 app.include_router(styles.router, prefix="/api", tags=["Styles"])
 app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(export.router, prefix="/api", tags=["Export"])
+app.include_router(google_photos.router, prefix="/api", tags=["Google Photos"])
 
 
 @app.get("/api/health")
