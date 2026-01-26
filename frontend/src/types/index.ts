@@ -1,0 +1,64 @@
+export interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  avatar_url: string | null;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  style: StyleType | null;
+  status: "draft" | "processing" | "complete";
+  created_at: string;
+  updated_at: string;
+  photos?: Photo[];
+  videos?: Video[];
+}
+
+export type StyleType = "ghibli" | "lego" | "minecraft" | "simpsons";
+
+export interface Photo {
+  id: string;
+  project_id: string;
+  original_path: string;
+  original_url: string;
+  styled_path: string | null;
+  styled_url: string | null;
+  animation_prompt: string | null;
+  position: number;
+  status: "uploaded" | "styling" | "styled" | "ready";
+  created_at: string;
+}
+
+export interface StyledVariant {
+  id: string;
+  styled_url: string;
+  style: string;
+  is_selected: boolean;
+  created_at: string;
+}
+
+export interface Video {
+  id: string;
+  photo_id: string | null;
+  project_id: string;
+  video_path: string | null;
+  video_url: string | null;
+  video_type: "scene" | "transition";
+  source_photo_id: string | null;
+  target_photo_id: string | null;
+  prompt: string | null;
+  duration_seconds: number | null;
+  position: number | null;
+  status: "pending" | "generating" | "ready" | "failed";
+  created_at: string;
+}
+
+export interface Export {
+  id: string;
+  project_id: string;
+  file_path: string | null;
+  status: "pending" | "processing" | "ready" | "failed";
+  created_at: string;
+}
