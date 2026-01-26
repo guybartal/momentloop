@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import type { Project, Photo, StyleType, StyledVariant } from "../types";
+import type { Project, Photo, StyleType, StyledVariant, Video } from "../types";
 import api from "../services/api";
 import ImageUploader from "../components/upload/ImageUploader";
 import PhotoGallery from "../components/gallery/PhotoGallery";
+import Lightbox from "../components/common/Lightbox";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -43,6 +44,9 @@ export default function ProjectPage() {
   const [photoVariants, setPhotoVariants] = useState<Record<string, StyledVariant[]>>({});
   const [loadingVariants, setLoadingVariants] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [photoVideos, setPhotoVideos] = useState<Record<string, Video>>({});
+  const [generatingVideos, setGeneratingVideos] = useState<Record<string, boolean>>({});
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
 
   // Track animation prompt for debounced saving
   const [animationPrompt, setAnimationPrompt] = useState<string>("");
@@ -138,12 +142,22 @@ export default function ProjectPage() {
 
   const loadProject = async () => {
     try {
-      const [projectRes, photosRes] = await Promise.all([
+      const [projectRes, photosRes, videosRes] = await Promise.all([
         api.get<Project>(`/projects/${projectId}`),
         api.get<Photo[]>(`/projects/${projectId}/photos`),
+        api.get<Video[]>(`/projects/${projectId}/videos`),
       ]);
       setProject(projectRes.data);
       setPhotos(photosRes.data);
+
+      // Map videos to photos
+      const videoMap: Record<string, Video> = {};
+      videosRes.data.forEach((video: Video) => {
+        if (video.photo_id && video.video_type === "scene") {
+          videoMap[video.photo_id] = video;
+        }
+      });
+      setPhotoVideos(videoMap);
 
       // Load variants for each photo
       photosRes.data.forEach((photo: Photo) => {
@@ -299,6 +313,54 @@ export default function ProjectPage() {
       navigate("/");
     } catch (error) {
       console.error("Failed to delete project:", error);
+    }
+  };
+
+  const handleGenerateVideo = async (photoId: string) => {
+    const photo = photos.find((p) => p.id === photoId);
+    if (!photo?.styled_url) {
+      console.error("Photo must be styled first");
+      return;
+    }
+
+    // Use current animationPrompt state if this is the selected photo, otherwise use saved prompt
+    const promptToUse = selectedPhoto?.id === photoId ? animationPrompt : photo.animation_prompt;
+    if (!promptToUse) {
+      console.error("Photo must have an animation prompt");
+      return;
+    }
+
+    setGeneratingVideos((prev) => ({ ...prev, [photoId]: true }));
+
+    try {
+      // Pass the prompt explicitly to ensure we use the latest
+      const response = await api.post<Video>(`/photos/${photoId}/generate-video`, {
+        prompt: promptToUse,
+      });
+      setPhotoVideos((prev) => ({ ...prev, [photoId]: response.data }));
+
+      // Poll for video completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await api.get(`/videos/${response.data.id}/status`);
+          const status = statusRes.data;
+
+          if (status.status === "ready" || status.status === "failed") {
+            clearInterval(pollInterval);
+            setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
+
+            // Get full video details
+            const videoRes = await api.get<Video>(`/videos/${response.data.id}`);
+            setPhotoVideos((prev) => ({ ...prev, [photoId]: videoRes.data }));
+          }
+        } catch {
+          clearInterval(pollInterval);
+          setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
+        }
+      }, 3000);
+    } catch (error) {
+      console.error("Failed to generate video:", error);
+      setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
     }
   };
 
@@ -556,7 +618,15 @@ export default function ProjectPage() {
                     Photo Details
                   </h2>
                   <div className="space-y-4">
-                    <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                    <div
+                      className="aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
+                      onClick={() =>
+                        setLightboxImage({
+                          url: `${API_URL}${selectedPhoto.styled_url || selectedPhoto.original_url}`,
+                          alt: "Selected photo",
+                        })
+                      }
+                    >
                       <img
                         src={`${API_URL}${
                           selectedPhoto.styled_url || selectedPhoto.original_url
@@ -598,10 +668,92 @@ export default function ProjectPage() {
                           disabled={selectedPhoto.status === "styling"}
                           className="text-sm text-primary-600 hover:text-primary-700 disabled:opacity-50"
                         >
-                          Regenerate
+                          Regenerate Style
                         </button>
                       )}
                     </div>
+
+                    {/* Video Generation Section */}
+                    {selectedPhoto.styled_url && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-sm font-medium text-gray-900">Animation Video</h3>
+                          {photoVideos[selectedPhoto.id] && (
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                photoVideos[selectedPhoto.id].status === "ready"
+                                  ? "bg-green-100 text-green-700"
+                                  : photoVideos[selectedPhoto.id].status === "generating"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : photoVideos[selectedPhoto.id].status === "failed"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {photoVideos[selectedPhoto.id].status}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Video Preview */}
+                        {photoVideos[selectedPhoto.id]?.video_url &&
+                         photoVideos[selectedPhoto.id]?.status === "ready" && (
+                          <div className="aspect-video bg-black rounded-lg overflow-hidden mb-3">
+                            <video
+                              src={`${API_URL}${photoVideos[selectedPhoto.id].video_url}`}
+                              controls
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+
+                        {/* Generating State */}
+                        {(generatingVideos[selectedPhoto.id] ||
+                          photoVideos[selectedPhoto.id]?.status === "generating") && (
+                          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center mb-3">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                              <p className="text-xs text-gray-500">Generating video...</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generate Button */}
+                        <button
+                          onClick={() => handleGenerateVideo(selectedPhoto.id)}
+                          disabled={
+                            !animationPrompt ||
+                            generatingVideos[selectedPhoto.id] ||
+                            photoVideos[selectedPhoto.id]?.status === "generating"
+                          }
+                          className={`w-full py-2 px-4 rounded-lg font-medium text-sm transition-colors ${
+                            !animationPrompt ||
+                            generatingVideos[selectedPhoto.id] ||
+                            photoVideos[selectedPhoto.id]?.status === "generating"
+                              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                              : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
+                          }`}
+                        >
+                          {generatingVideos[selectedPhoto.id] ||
+                           photoVideos[selectedPhoto.id]?.status === "generating" ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              Generating...
+                            </span>
+                          ) : photoVideos[selectedPhoto.id]?.video_url ? (
+                            "Regenerate Video"
+                          ) : (
+                            "Generate Video"
+                          )}
+                        </button>
+
+                        {!animationPrompt && (
+                          <p className="text-xs text-gray-400 mt-2 text-center">
+                            Add an animation prompt above first
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
@@ -630,6 +782,8 @@ export default function ProjectPage() {
                 {photos.map((photo, index) => {
                   const variants = photoVariants[photo.id] || [];
                   const isRegenerating = loadingVariants[photo.id];
+                  const video = photoVideos[photo.id];
+                  const isGeneratingVideo = generatingVideos[photo.id];
 
                   return (
                     <div
@@ -677,7 +831,15 @@ export default function ProjectPage() {
                           <p className="text-sm text-gray-500 mb-2 text-center">
                             Original
                           </p>
-                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                          <div
+                            className="aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
+                            onClick={() =>
+                              setLightboxImage({
+                                url: `${API_URL}${photo.original_url}`,
+                                alt: `Original ${index + 1}`,
+                              })
+                            }
+                          >
                             <img
                               src={`${API_URL}${photo.original_url}`}
                               alt={`Original ${index + 1}`}
@@ -696,7 +858,13 @@ export default function ProjectPage() {
                               <img
                                 src={`${API_URL}${photo.styled_url}`}
                                 alt={`Styled ${index + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
+                                onClick={() =>
+                                  setLightboxImage({
+                                    url: `${API_URL}${photo.styled_url}`,
+                                    alt: `Styled ${index + 1}`,
+                                  })
+                                }
                               />
                             ) : photo.status === "styling" ? (
                               <div className="w-full h-full flex items-center justify-center">
@@ -760,6 +928,113 @@ export default function ProjectPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* Video Generation Section */}
+                      {photo.styled_url && (
+                        <div className="mt-6 pt-4 border-t border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-medium text-gray-900">Animation Video</h4>
+                            {video && (
+                              <span
+                                className={`px-2 py-1 text-xs rounded-full ${
+                                  video.status === "ready"
+                                    ? "bg-green-100 text-green-700"
+                                    : video.status === "generating"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : video.status === "failed"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {video.status}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Video Preview */}
+                          {video?.video_url && video.status === "ready" ? (
+                            <div className="aspect-video bg-black rounded-lg overflow-hidden mb-3">
+                              <video
+                                src={`${API_URL}${video.video_url}`}
+                                controls
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          ) : isGeneratingVideo || video?.status === "generating" ? (
+                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center mb-3">
+                              <div className="text-center">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-3"></div>
+                                <p className="text-sm text-gray-600">
+                                  Generating video with Kling AI...
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  This may take a few minutes
+                                </p>
+                              </div>
+                            </div>
+                          ) : video?.status === "failed" ? (
+                            <div className="aspect-video bg-red-50 rounded-lg flex items-center justify-center mb-3">
+                              <div className="text-center">
+                                <p className="text-sm text-red-600 mb-2">
+                                  Video generation failed
+                                </p>
+                                <button
+                                  onClick={() => handleGenerateVideo(photo.id)}
+                                  className="text-sm text-primary-600 hover:text-primary-700"
+                                >
+                                  Try Again
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {/* Animation Prompt */}
+                          <div className="mb-3">
+                            <p className="text-xs text-gray-500 mb-1">Animation Prompt:</p>
+                            <p className="text-sm text-gray-700 bg-gray-50 rounded p-2">
+                              {photo.animation_prompt || (
+                                <span className="text-gray-400 italic">
+                                  No animation prompt set. Add one in Grid view.
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Generate Button */}
+                          <button
+                            onClick={() => handleGenerateVideo(photo.id)}
+                            disabled={
+                              !photo.animation_prompt ||
+                              isGeneratingVideo ||
+                              video?.status === "generating"
+                            }
+                            className={`w-full py-2 px-4 rounded-lg font-medium text-sm transition-colors ${
+                              !photo.animation_prompt ||
+                              isGeneratingVideo ||
+                              video?.status === "generating"
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
+                            }`}
+                          >
+                            {isGeneratingVideo || video?.status === "generating" ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Generating...
+                              </span>
+                            ) : video?.video_url ? (
+                              "Regenerate Video"
+                            ) : (
+                              "Generate Video"
+                            )}
+                          </button>
+
+                          {!photo.animation_prompt && (
+                            <p className="text-xs text-gray-400 mt-2 text-center">
+                              Add an animation prompt in Grid view to generate a video
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -768,6 +1043,15 @@ export default function ProjectPage() {
           </div>
         )}
       </main>
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <Lightbox
+          imageUrl={lightboxImage.url}
+          alt={lightboxImage.alt}
+          onClose={() => setLightboxImage(null)}
+        />
+      )}
     </div>
   );
 }

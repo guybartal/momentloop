@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import io
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -17,6 +19,23 @@ STYLE_PROMPTS = {
     "minecraft": "Transform this photo into Minecraft pixel art style with cubic, blocky forms. Everything should look like it's made of Minecraft blocks with the characteristic pixelated 8-bit texture.",
     "simpsons": "Transform this photo into The Simpsons cartoon style with yellow skin tones, overbite expressions, and the distinctive 2D animation style of the TV show. Characters should have 4 fingers and the exaggerated features of Simpsons characters.",
 }
+
+# Shared thread pool for CPU-bound image operations
+_image_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="imagen_")
+
+# Shared HTTP client for API calls
+_http_client: httpx.AsyncClient | None = None
+
+
+async def _get_http_client() -> httpx.AsyncClient:
+    """Get or create a shared HTTP client."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0),
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        )
+    return _http_client
 
 
 class ImagenService:
@@ -41,25 +60,25 @@ class ImagenService:
 
         prompt = STYLE_PROMPTS[style]
 
-        # Read the image
-        image = Image.open(image_path)
+        # Read and prepare image in thread pool
+        loop = asyncio.get_running_loop()
 
-        # Convert to RGB if necessary (for PNG with alpha channel)
-        if image.mode in ('RGBA', 'P'):
-            image = image.convert('RGB')
+        def prepare_image():
+            image = Image.open(image_path)
+            if image.mode in ('RGBA', 'P'):
+                image = image.convert('RGB')
+            img_buffer = io.BytesIO()
+            image.save(img_buffer, format='JPEG', quality=95)
+            return image, base64.b64encode(img_buffer.getvalue()).decode('utf-8')
 
-        # Convert image to base64 for API
-        img_buffer = io.BytesIO()
-        image.save(img_buffer, format='JPEG', quality=95)
-        img_bytes = img_buffer.getvalue()
-        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        image, img_base64 = await loop.run_in_executor(_image_executor, prepare_image)
 
         print(f"Sending image to Gemini for {style} style transfer...")
 
         # Try SDK first
         if self.client:
             try:
-                result = await self._try_sdk_generation(image, prompt)
+                result = await self._try_sdk_generation(image, prompt, loop)
                 if result:
                     return result
             except Exception as e:
@@ -77,11 +96,17 @@ class ImagenService:
 
         # Last resort: Apply PIL filters as placeholder
         print("WARNING: Using PIL fallback filters - API calls failed")
-        return self._apply_pil_fallback(image, style)
+        return await loop.run_in_executor(
+            _image_executor,
+            self._apply_pil_fallback,
+            image,
+            style
+        )
 
-    async def _try_sdk_generation(self, image: Image.Image, prompt: str) -> bytes | None:
-        """Try generating with SDK."""
-        # Try models in order of preference
+    async def _try_sdk_generation(
+        self, image: Image.Image, prompt: str, loop: asyncio.AbstractEventLoop
+    ) -> bytes | None:
+        """Try generating with SDK in thread pool (SDK is synchronous)."""
         models_to_try = [
             "gemini-3-pro-image-preview",
             "gemini-2.0-flash-preview-image-generation",
@@ -92,13 +117,17 @@ class ImagenService:
         for model_name in models_to_try:
             try:
                 print(f"Trying SDK with model: {model_name}")
-                response = self.client.models.generate_content(
-                    model=model_name,
-                    contents=[prompt, image],
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE", "TEXT"],
-                    ),
-                )
+
+                def call_sdk():
+                    return self.client.models.generate_content(
+                        model=model_name,
+                        contents=[prompt, image],
+                        config=types.GenerateContentConfig(
+                            response_modalities=["IMAGE", "TEXT"],
+                        ),
+                    )
+
+                response = await loop.run_in_executor(_image_executor, call_sdk)
 
                 if response.candidates and response.candidates[0].content.parts:
                     for part in response.candidates[0].content.parts:
@@ -116,12 +145,13 @@ class ImagenService:
 
     async def _try_rest_api(self, img_base64: str, prompt: str) -> bytes | None:
         """Try generating with direct REST API call."""
-        # Models to try via REST API in order of preference
         models = [
             "gemini-2.0-flash-preview-image-generation",
             "gemini-2.0-flash-exp-image-generation",
             "gemini-2.0-flash-exp",
         ]
+
+        client = await _get_http_client()
 
         for model in models:
             try:
@@ -147,27 +177,26 @@ class ImagenService:
                     }
                 }
 
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    response = await client.post(
-                        url,
-                        json=payload,
-                        params={"key": self.api_key},
-                        headers={"Content-Type": "application/json"}
-                    )
+                response = await client.post(
+                    url,
+                    json=payload,
+                    params={"key": self.api_key},
+                    headers={"Content-Type": "application/json"}
+                )
 
-                    if response.status_code == 200:
-                        data = response.json()
-                        if "candidates" in data and data["candidates"]:
-                            parts = data["candidates"][0].get("content", {}).get("parts", [])
-                            for part in parts:
-                                if "inlineData" in part:
-                                    image_data = base64.b64decode(part["inlineData"]["data"])
-                                    print(f"Received styled image from REST API ({model}), {len(image_data)} bytes")
-                                    return image_data
-                                elif "text" in part:
-                                    print(f"REST API {model} text response: {part['text'][:200]}...")
-                    else:
-                        print(f"REST API {model} error: {response.status_code} - {response.text[:500]}")
+                if response.status_code == 200:
+                    data = response.json()
+                    if "candidates" in data and data["candidates"]:
+                        parts = data["candidates"][0].get("content", {}).get("parts", [])
+                        for part in parts:
+                            if "inlineData" in part:
+                                image_data = base64.b64decode(part["inlineData"]["data"])
+                                print(f"Received styled image from REST API ({model}), {len(image_data)} bytes")
+                                return image_data
+                            elif "text" in part:
+                                print(f"REST API {model} text response: {part['text'][:200]}...")
+                else:
+                    print(f"REST API {model} error: {response.status_code} - {response.text[:500]}")
 
             except Exception as e:
                 print(f"REST API {model} failed: {e}")
@@ -217,26 +246,40 @@ class ImagenService:
         if not self.client:
             raise RuntimeError("Google AI API key not configured")
 
-        image = Image.open(image_path)
+        loop = asyncio.get_running_loop()
 
-        response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                image,
-                """Analyze this image and generate a short, vivid animation prompt
-                describing how this scene could come to life as a 5-second video clip.
-                Focus on subtle movements like:
-                - Wind blowing through hair or leaves
-                - Gentle camera movements (pan, zoom)
-                - Atmospheric effects (clouds moving, light changing)
-                - Character expressions or small movements
+        def load_image():
+            return Image.open(image_path)
 
-                Keep the prompt under 100 words and make it cinematic.
-                Only return the prompt text, nothing else."""
-            ],
-        )
+        image = await loop.run_in_executor(_image_executor, load_image)
 
+        def call_api():
+            return self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    image,
+                    """Analyze this image and generate a short, vivid animation prompt
+                    describing how this scene could come to life as a 5-second video clip.
+                    Focus on subtle movements like:
+                    - Wind blowing through hair or leaves
+                    - Gentle camera movements (pan, zoom)
+                    - Atmospheric effects (clouds moving, light changing)
+                    - Character expressions or small movements
+
+                    Keep the prompt under 100 words and make it cinematic.
+                    Only return the prompt text, nothing else."""
+                ],
+            )
+
+        response = await loop.run_in_executor(_image_executor, call_api)
         return response.text.strip()
+
+    async def close(self):
+        """Clean up resources."""
+        global _http_client
+        if _http_client and not _http_client.is_closed:
+            await _http_client.aclose()
+            _http_client = None
 
 
 imagen_service = ImagenService()

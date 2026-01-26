@@ -1,11 +1,13 @@
+import asyncio
+import traceback
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.database import get_db
+from app.core.database import get_db, background_session_maker
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
@@ -15,6 +17,9 @@ from app.services.fal_ai import fal_ai_service
 from app.services.storage import storage_service
 
 router = APIRouter()
+
+# Limit concurrent video generation operations
+VIDEO_GENERATION_SEMAPHORE = asyncio.Semaphore(5)
 
 
 def video_to_response(video: Video) -> VideoResponse:
@@ -36,60 +41,66 @@ def video_to_response(video: Video) -> VideoResponse:
     )
 
 
+async def update_video_status(video_id: UUID, status_value: str):
+    """Update a video's status using background session."""
+    async with background_session_maker() as db:
+        result = await db.execute(select(Video).where(Video.id == video_id))
+        video = result.scalar_one_or_none()
+        if video:
+            video.status = status_value
+            await db.commit()
+
+
 async def process_video_generation(
     video_id: UUID,
     image_path: str,
     prompt: str,
-    db_url: str,
+    project_id: UUID,
 ):
     """Background task to process video generation."""
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    async with VIDEO_GENERATION_SEMAPHORE:
+        print(f"Starting video generation for video {video_id}")
 
-    from app.models.video import Video
-
-    engine = create_async_engine(db_url)
-    async with AsyncSession(engine) as db:
-        result = await db.execute(select(Video).where(Video.id == video_id))
-        video = result.scalar_one_or_none()
-
-        if not video:
-            return
+        # Update status to generating
+        await update_video_status(video_id, "generating")
 
         try:
-            video.status = "generating"
-            await db.commit()
-
             # Generate video
             video_bytes = await fal_ai_service.generate_video(
                 storage_service.get_full_path(image_path),
                 prompt,
                 duration=5.0,
             )
+            print(f"Video generation complete for {video_id}, got {len(video_bytes)} bytes")
 
             # Save video
             video_path = await storage_service.save_video(
-                video_bytes, video.project_id, "scene"
+                video_bytes, project_id, "scene"
             )
+            print(f"Saved video to: {video_path}")
 
             # Update record
-            video.video_path = video_path
-            video.duration_seconds = 5.0
-            video.status = "ready"
+            async with background_session_maker() as db:
+                result = await db.execute(select(Video).where(Video.id == video_id))
+                video = result.scalar_one_or_none()
+                if video:
+                    video.video_path = video_path
+                    video.duration_seconds = 5.0
+                    video.status = "ready"
+                    await db.commit()
 
-            await db.commit()
+            print(f"Video {video_id} status updated to 'ready'")
 
         except Exception as e:
             print(f"Video generation failed for video {video_id}: {e}")
-            video.status = "failed"
-            await db.commit()
+            traceback.print_exc()
+            await update_video_status(video_id, "failed")
 
 
 @router.post("/photos/{photo_id}/generate-video", response_model=VideoResponse)
 async def generate_video_from_photo(
     photo_id: UUID,
     request: GenerateVideoRequest | None = None,
-    background_tasks: BackgroundTasks = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -149,16 +160,14 @@ async def generate_video_from_photo(
     await db.commit()
     await db.refresh(video)
 
-    # Start background generation
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    background_tasks.add_task(
-        process_video_generation,
-        video.id,
-        image_path,
-        prompt,
-        settings.database_url,
+    # Start background generation using asyncio.create_task
+    asyncio.create_task(
+        process_video_generation(
+            video.id,
+            image_path,
+            prompt,
+            photo.project_id,
+        )
     )
 
     return video_to_response(video)
@@ -167,7 +176,6 @@ async def generate_video_from_photo(
 @router.post("/videos/transition", response_model=VideoResponse)
 async def generate_transition_video(
     request: TransitionVideoRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -228,15 +236,13 @@ async def generate_transition_video(
     image_path = source_photo.styled_path or source_photo.original_path
 
     # Start background generation
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    background_tasks.add_task(
-        process_video_generation,
-        video.id,
-        image_path,
-        prompt,
-        settings.database_url,
+    asyncio.create_task(
+        process_video_generation(
+            video.id,
+            image_path,
+            prompt,
+            source_photo.project_id,
+        )
     )
 
     return video_to_response(video)
