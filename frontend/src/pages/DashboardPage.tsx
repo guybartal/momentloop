@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import type { Project } from "../types";
 import api from "../services/api";
 
 export default function DashboardPage() {
   const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -33,9 +34,10 @@ export default function DashboardPage() {
       const response = await api.post<Project>("/projects", {
         name: newProjectName,
       });
-      setProjects([response.data, ...projects]);
       setNewProjectName("");
       setShowCreateModal(false);
+      // Navigate to the new project page
+      navigate(`/projects/${response.data.id}`);
     } catch (error) {
       console.error("Failed to create project:", error);
     }

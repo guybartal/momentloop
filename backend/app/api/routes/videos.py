@@ -12,7 +12,7 @@ from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
 from app.models.video import Video
-from app.schemas.video import GenerateVideoRequest, TransitionVideoRequest, VideoResponse
+from app.schemas.video import GenerateVideoRequest, SelectVideoRequest, TransitionVideoRequest, VideoResponse
 from app.services.fal_ai import fal_ai_service
 from app.services.storage import storage_service
 
@@ -37,6 +37,7 @@ def video_to_response(video: Video) -> VideoResponse:
         duration_seconds=video.duration_seconds,
         position=video.position,
         status=video.status,
+        is_selected=video.is_selected,
         created_at=video.created_at,
     )
 
@@ -56,6 +57,7 @@ async def process_video_generation(
     image_path: str,
     prompt: str,
     project_id: UUID,
+    photo_id: UUID | None = None,
 ):
     """Background task to process video generation."""
     async with VIDEO_GENERATION_SEMAPHORE:
@@ -79,14 +81,27 @@ async def process_video_generation(
             )
             print(f"Saved video to: {video_path}")
 
-            # Update record
+            # Update record and mark as selected (deselect others for same photo)
             async with background_session_maker() as db:
+                # Deselect other videos for this photo
+                if photo_id:
+                    result = await db.execute(
+                        select(Video).where(
+                            Video.photo_id == photo_id,
+                            Video.video_type == "scene",
+                        )
+                    )
+                    other_videos = result.scalars().all()
+                    for v in other_videos:
+                        v.is_selected = False
+
                 result = await db.execute(select(Video).where(Video.id == video_id))
                 video = result.scalar_one_or_none()
                 if video:
                     video.video_path = video_path
                     video.duration_seconds = 5.0
                     video.status = "ready"
+                    video.is_selected = True
                     await db.commit()
 
             print(f"Video {video_id} status updated to 'ready'")
@@ -130,32 +145,28 @@ async def generate_video_from_photo(
             detail="No animation prompt available. Generate or provide one.",
         )
 
-    # Check if video already exists for this photo
+    # Deselect all existing videos for this photo
     result = await db.execute(
         select(Video).where(
             Video.photo_id == photo_id,
             Video.video_type == "scene",
         )
     )
-    existing_video = result.scalar_one_or_none()
+    existing_videos = result.scalars().all()
+    for v in existing_videos:
+        v.is_selected = False
 
-    if existing_video:
-        # Update existing video
-        existing_video.prompt = prompt
-        existing_video.status = "pending"
-        existing_video.video_path = None
-        video = existing_video
-    else:
-        # Create new video record
-        video = Video(
-            photo_id=photo_id,
-            project_id=photo.project_id,
-            video_type="scene",
-            prompt=prompt,
-            position=photo.position,
-            status="pending",
-        )
-        db.add(video)
+    # Create new video record (always create new, don't update existing)
+    video = Video(
+        photo_id=photo_id,
+        project_id=photo.project_id,
+        video_type="scene",
+        prompt=prompt,
+        position=photo.position,
+        status="pending",
+        is_selected=False,  # Will be set to True when generation completes
+    )
+    db.add(video)
 
     await db.commit()
     await db.refresh(video)
@@ -167,6 +178,7 @@ async def generate_video_from_photo(
             image_path,
             prompt,
             photo.project_id,
+            photo_id,
         )
     )
 
@@ -356,3 +368,88 @@ async def delete_video(
 
     await db.delete(video)
     await db.commit()
+
+
+@router.get("/photos/{photo_id}/videos", response_model=list[VideoResponse])
+async def list_photo_videos(
+    photo_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all video variants for a photo."""
+    # Verify ownership
+    result = await db.execute(
+        select(Photo)
+        .join(Project)
+        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+    )
+    photo = result.scalar_one_or_none()
+
+    if not photo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo not found",
+        )
+
+    # Get all videos for this photo
+    result = await db.execute(
+        select(Video)
+        .where(Video.photo_id == photo_id, Video.video_type == "scene")
+        .order_by(Video.created_at.desc())
+    )
+    videos = result.scalars().all()
+
+    return [video_to_response(video) for video in videos]
+
+
+@router.post("/photos/{photo_id}/videos/select", response_model=VideoResponse)
+async def select_photo_video(
+    photo_id: UUID,
+    request: SelectVideoRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Select a specific video as the active one for a photo."""
+    # Verify ownership
+    result = await db.execute(
+        select(Photo)
+        .join(Project)
+        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+    )
+    photo = result.scalar_one_or_none()
+
+    if not photo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo not found",
+        )
+
+    # Verify video belongs to this photo
+    result = await db.execute(
+        select(Video).where(
+            Video.id == request.video_id,
+            Video.photo_id == photo_id,
+        )
+    )
+    selected_video = result.scalar_one_or_none()
+
+    if not selected_video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video not found",
+        )
+
+    # Deselect all videos for this photo
+    result = await db.execute(
+        select(Video).where(Video.photo_id == photo_id)
+    )
+    all_videos = result.scalars().all()
+    for v in all_videos:
+        v.is_selected = False
+
+    # Select the chosen video
+    selected_video.is_selected = True
+
+    await db.commit()
+
+    return video_to_response(selected_video)

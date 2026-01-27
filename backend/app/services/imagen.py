@@ -14,10 +14,10 @@ from app.core.config import get_settings
 settings = get_settings()
 
 STYLE_PROMPTS = {
-    "ghibli": "Transform this photo into Studio Ghibli anime style with soft watercolor colors, dreamy atmosphere, and the distinctive artistic style of Hayao Miyazaki's films. Keep the main subjects recognizable but render them in beautiful anime style with hand-painted textures.",
-    "lego": "Transform this photo into LEGO brick style. Make everything look like it's built from LEGO bricks with blocky, pixelated characters. Use vibrant primary colors typical of LEGO sets.",
-    "minecraft": "Transform this photo into Minecraft pixel art style with cubic, blocky forms. Everything should look like it's made of Minecraft blocks with the characteristic pixelated 8-bit texture.",
-    "simpsons": "Transform this photo into The Simpsons cartoon style with yellow skin tones, overbite expressions, and the distinctive 2D animation style of the TV show. Characters should have 4 fingers and the exaggerated features of Simpsons characters.",
+    "ghibli": "Edit this exact photo to look like a Studio Ghibli anime frame. Keep the SAME people, poses, composition, and background. Apply soft watercolor textures, dreamy pastel colors, and Hayao Miyazaki's distinctive art style. The people should look like anime characters but still be clearly recognizable as themselves. Do NOT change the scene or people - only apply the art style.",
+    "lego": "Edit this exact photo to look like a LEGO scene. Keep the SAME people, poses, composition, and setting. Make everyone look like LEGO minifigures with yellow skin, simple faces, and blocky bodies. The background should look like it's built from LEGO bricks. Do NOT change the scene or people - only apply the LEGO style.",
+    "minecraft": "Edit this exact photo to look like a Minecraft screenshot. Keep the SAME people, poses, composition, and setting. Make everything look blocky and pixelated like Minecraft, with cubic forms and 8-bit textures. Characters should look like Minecraft player skins. Do NOT change the scene or people - only apply the Minecraft style.",
+    "simpsons": "Edit this exact photo to look like a frame from The Simpsons TV show. Keep the SAME people, poses, composition, and setting. Give people yellow skin, overbites, 4 fingers, and the distinctive Simpsons cartoon style. The background should match the 2D animation look of the show. Do NOT change the scene or people - only apply The Simpsons style.",
 }
 
 # Shared thread pool for CPU-bound image operations
@@ -47,10 +47,15 @@ class ImagenService:
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
 
-    async def apply_style(self, image_path: Path, style: str) -> bytes:
+    async def apply_style(self, image_path: Path, style: str, custom_prompt: str | None = None) -> bytes:
         """
         Apply a style to an image using Google's Gemini with image generation.
         Returns the styled image as bytes.
+
+        Args:
+            image_path: Path to the source image
+            style: Style key (ghibli, lego, minecraft, simpsons)
+            custom_prompt: Optional custom prompt to use instead of the default
         """
         if style not in STYLE_PROMPTS:
             raise ValueError(f"Unknown style: {style}. Available: {list(STYLE_PROMPTS.keys())}")
@@ -58,7 +63,8 @@ class ImagenService:
         if not self.api_key:
             raise RuntimeError("Google AI API key not configured")
 
-        prompt = STYLE_PROMPTS[style]
+        # Use custom prompt if provided, otherwise use default
+        prompt = custom_prompt if custom_prompt else STYLE_PROMPTS[style]
 
         # Read and prepare image in thread pool
         loop = asyncio.get_running_loop()

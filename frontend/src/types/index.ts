@@ -9,6 +9,7 @@ export interface Project {
   id: string;
   name: string;
   style: StyleType | null;
+  style_prompt: string | null;
   status: "draft" | "processing" | "complete";
   created_at: string;
   updated_at: string;
@@ -52,6 +53,7 @@ export interface Video {
   duration_seconds: number | null;
   position: number | null;
   status: "pending" | "generating" | "ready" | "failed";
+  is_selected: boolean;
   created_at: string;
 }
 

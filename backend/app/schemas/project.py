@@ -15,6 +15,7 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     name: str | None = None
     style: str | None = None
+    style_prompt: str | None = None
     status: str | None = None
 
 
@@ -22,6 +23,7 @@ class ProjectResponse(ProjectBase):
     id: uuid.UUID
     user_id: uuid.UUID
     style: str | None
+    style_prompt: str | None
     status: str
     created_at: datetime
     updated_at: datetime

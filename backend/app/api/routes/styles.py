@@ -36,6 +36,7 @@ async def process_single_photo_style(
     photo_id: UUID,
     original_path: str,
     style: str,
+    custom_prompt: str | None = None,
 ) -> tuple[UUID, bool, str | None]:
     """
     Process style transfer for a single photo.
@@ -46,8 +47,8 @@ async def process_single_photo_style(
             full_path = storage_service.get_full_path(original_path)
             print(f"Processing image at: {full_path}")
 
-            # Apply style transfer
-            styled_bytes = await imagen_service.apply_style(full_path, style)
+            # Apply style transfer with optional custom prompt
+            styled_bytes = await imagen_service.apply_style(full_path, style, custom_prompt)
             print(f"Style transfer complete for photo {photo_id}, got {len(styled_bytes)} bytes")
 
             # Save the styled image
@@ -110,6 +111,7 @@ async def process_style_transfer_for_photo(
     photo_id: UUID,
     style: str,
     save_as_variant: bool = True,
+    custom_prompt: str | None = None,
 ):
     """Background task to process style transfer for a single photo."""
     print(f"Starting style transfer for photo {photo_id} with style {style}")
@@ -130,7 +132,7 @@ async def process_style_transfer_for_photo(
 
     # Process the photo
     photo_id, success, result = await process_single_photo_style(
-        photo_id, original_path, style
+        photo_id, original_path, style, custom_prompt
     )
 
     if success:
@@ -142,6 +144,7 @@ async def process_style_transfer_for_photo(
 async def process_project_style_transfer(
     project_id: UUID,
     style: str,
+    custom_prompt: str | None = None,
 ):
     """Background task to process style transfer for all photos in a project concurrently."""
     print(f"Starting style transfer for project {project_id} with style {style}")
@@ -170,7 +173,7 @@ async def process_project_style_transfer(
 
     # Process all photos concurrently with semaphore limiting
     tasks = [
-        process_single_photo_style(photo_id, original_path, style)
+        process_single_photo_style(photo_id, original_path, style, custom_prompt)
         for photo_id, original_path in photo_data
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -229,11 +232,12 @@ async def stylize_project(
     project.status = "processing"
     await db.commit()
 
-    # Start background task using asyncio
+    # Start background task using asyncio (use project's custom prompt if set)
     asyncio.create_task(
         process_project_style_transfer(
             project_id,
             style_request.style,
+            project.style_prompt,
         )
     )
 
@@ -254,30 +258,33 @@ async def regenerate_photo_style(
             detail=f"Invalid style. Must be one of: {VALID_STYLES}",
         )
 
-    # Verify ownership
+    # Verify ownership and get project for custom prompt
     result = await db.execute(
-        select(Photo)
+        select(Photo, Project)
         .join(Project)
         .where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
-    photo = result.scalar_one_or_none()
+    row = result.first()
 
-    if not photo:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Photo not found",
         )
 
+    photo, project = row
+
     # Update status
     photo.status = "styling"
     await db.commit()
 
-    # Start background task
+    # Start background task with project's custom prompt
     asyncio.create_task(
         process_style_transfer_for_photo(
             photo_id,
             style_request.style,
             save_as_variant=True,
+            custom_prompt=project.style_prompt,
         )
     )
 
@@ -321,6 +328,12 @@ async def get_project_style_status(
     total = len(photos)
     styled = sum(1 for p in photos if p.status == "styled")
     styling = sum(1 for p in photos if p.status == "styling")
+    uploaded = sum(1 for p in photos if p.status == "uploaded")
+
+    # Auto-fix stuck project status: if no photos are styling but project is still "processing"
+    if project.status == "processing" and styling == 0:
+        project.status = "draft"
+        await db.commit()
 
     return {
         "project_id": str(project.id),
@@ -329,7 +342,53 @@ async def get_project_style_status(
         "total_photos": total,
         "styled_count": styled,
         "styling_count": styling,
+        "uploaded_count": uploaded,
         "photos": photo_statuses,
+    }
+
+
+@router.post("/projects/{project_id}/reset-stuck")
+async def reset_stuck_photos(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset photos stuck in 'styling' status back to 'uploaded'."""
+    # Verify project ownership
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Reset stuck photos
+    result = await db.execute(
+        select(Photo).where(
+            Photo.project_id == project_id,
+            Photo.status == "styling",
+        )
+    )
+    stuck_photos = result.scalars().all()
+
+    reset_count = 0
+    for photo in stuck_photos:
+        photo.status = "uploaded"
+        reset_count += 1
+
+    # Also reset project status if it was processing
+    if project.status == "processing":
+        project.status = "draft"
+
+    await db.commit()
+
+    return {
+        "reset_count": reset_count,
+        "project_status": project.status,
     }
 
 

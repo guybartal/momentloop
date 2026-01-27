@@ -28,10 +28,15 @@ class VideoResponse(BaseModel):
     duration_seconds: float | None
     position: int | None
     status: str
+    is_selected: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class SelectVideoRequest(BaseModel):
+    video_id: uuid.UUID
 
 
 class GenerateVideoRequest(BaseModel):

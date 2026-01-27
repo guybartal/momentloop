@@ -125,6 +125,8 @@ async def update_project(
         project.name = project_data.name
     if project_data.style is not None:
         project.style = project_data.style
+    if project_data.style_prompt is not None:
+        project.style_prompt = project_data.style_prompt
     if project_data.status is not None:
         project.status = project_data.status
 

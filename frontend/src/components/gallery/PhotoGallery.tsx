@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -28,6 +29,7 @@ interface SortablePhotoProps {
   isSelected: boolean;
   onClick: () => void;
   apiUrl: string;
+  showOriginal: boolean;
 }
 
 function SortablePhoto({
@@ -35,6 +37,7 @@ function SortablePhoto({
   isSelected,
   onClick,
   apiUrl,
+  showOriginal,
 }: SortablePhotoProps) {
   const {
     attributes,
@@ -50,9 +53,9 @@ function SortablePhoto({
     transition,
   };
 
-  const imageUrl = photo.styled_url
-    ? `${apiUrl}${photo.styled_url}`
-    : `${apiUrl}${photo.original_url}`;
+  const imageUrl = showOriginal || !photo.styled_url
+    ? `${apiUrl}${photo.original_url}`
+    : `${apiUrl}${photo.styled_url}`;
 
   return (
     <div
@@ -72,9 +75,6 @@ function SortablePhoto({
           className="w-full h-full object-cover"
           draggable={false}
         />
-      </div>
-      <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded text-sm">
-        {photo.position + 1}
       </div>
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-2">
         <span
@@ -107,6 +107,7 @@ export default function PhotoGallery({
   selectedPhotoId,
   apiUrl,
 }: PhotoGalleryProps) {
+  const [showOriginal, setShowOriginal] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -131,6 +132,9 @@ export default function PhotoGallery({
     }
   };
 
+  // Check if any photos have styled versions
+  const hasStyledPhotos = photos.some((p) => p.styled_url);
+
   if (photos.length === 0) {
     return (
       <p className="text-gray-500 text-center py-8">
@@ -140,27 +144,59 @@ export default function PhotoGallery({
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={photos.map((p) => p.id)}
-        strategy={rectSortingStrategy}
-      >
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {photos.map((photo) => (
-            <SortablePhoto
-              key={photo.id}
-              photo={photo}
-              isSelected={photo.id === selectedPhotoId}
-              onClick={() => onSelect(photo)}
-              apiUrl={apiUrl}
-            />
-          ))}
+    <div>
+      {/* Toggle button */}
+      {hasStyledPhotos && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => setShowOriginal(!showOriginal)}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              showOriginal
+                ? "bg-gray-100 border-gray-300 text-gray-700"
+                : "bg-purple-50 border-purple-300 text-purple-700"
+            }`}
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {showOriginal ? "Show Styled" : "Show Original"}
+          </button>
         </div>
-      </SortableContext>
-    </DndContext>
+      )}
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={photos.map((p) => p.id)}
+          strategy={rectSortingStrategy}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {photos.map((photo) => (
+              <SortablePhoto
+                key={photo.id}
+                photo={photo}
+                isSelected={photo.id === selectedPhotoId}
+                onClick={() => onSelect(photo)}
+                apiUrl={apiUrl}
+                showOriginal={showOriginal}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 }

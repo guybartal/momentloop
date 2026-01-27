@@ -5,6 +5,7 @@ import api from "../services/api";
 import ImageUploader from "../components/upload/ImageUploader";
 import PhotoGallery from "../components/gallery/PhotoGallery";
 import Lightbox from "../components/common/Lightbox";
+import GeneratingTimer from "../components/common/GeneratingTimer";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -44,7 +45,7 @@ export default function ProjectPage() {
   const [photoVariants, setPhotoVariants] = useState<Record<string, StyledVariant[]>>({});
   const [loadingVariants, setLoadingVariants] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [photoVideos, setPhotoVideos] = useState<Record<string, Video>>({});
+  const [photoVideos, setPhotoVideos] = useState<Record<string, Video[]>>({});
   const [generatingVideos, setGeneratingVideos] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
 
@@ -52,6 +53,12 @@ export default function ProjectPage() {
   const [animationPrompt, setAnimationPrompt] = useState<string>("");
   const debouncedPrompt = useDebounce(animationPrompt, 1000);
   const lastSavedPromptRef = useRef<string>("");
+
+  // Track style prompt for debounced saving
+  const [stylePrompt, setStylePrompt] = useState<string>("");
+  const debouncedStylePrompt = useDebounce(stylePrompt, 1000);
+  const lastSavedStylePromptRef = useRef<string>("");
+  const [showStylePrompt, setShowStylePrompt] = useState(false);
 
   useEffect(() => {
     if (projectId) {
@@ -91,16 +98,16 @@ export default function ProjectPage() {
             prev ? { ...prev, status: data.project_status } : prev
           );
           setIsApplyingStyle(false);
-          // Reload variants for all photos
-          photos.forEach((p) => loadVariants(p.id));
+          // Reload full project to get final photo states
+          loadProject();
         }
       } catch (error) {
         console.error("Failed to check style status:", error);
       }
-    }, 2000);
+    }, 5000); // Poll every 5 seconds instead of 2
 
     return () => clearInterval(interval);
-  }, [project?.status, projectId, photos]);
+  }, [project?.status, projectId]);
 
   // Auto-save animation prompt when it changes (debounced)
   useEffect(() => {
@@ -140,6 +147,37 @@ export default function ProjectPage() {
     }
   }, [selectedPhoto?.id]);
 
+  // Sync stylePrompt state when project changes
+  useEffect(() => {
+    if (project) {
+      setStylePrompt(project.style_prompt || "");
+      lastSavedStylePromptRef.current = project.style_prompt || "";
+    }
+  }, [project?.id]);
+
+  // Auto-save style prompt when it changes (debounced)
+  useEffect(() => {
+    if (
+      project &&
+      debouncedStylePrompt !== lastSavedStylePromptRef.current
+    ) {
+      const saveStylePrompt = async () => {
+        try {
+          await api.put(`/projects/${project.id}`, {
+            style_prompt: debouncedStylePrompt,
+          });
+          lastSavedStylePromptRef.current = debouncedStylePrompt;
+          setProject((prev) =>
+            prev ? { ...prev, style_prompt: debouncedStylePrompt } : prev
+          );
+        } catch (error) {
+          console.error("Failed to save style prompt:", error);
+        }
+      };
+      saveStylePrompt();
+    }
+  }, [debouncedStylePrompt, project?.id]);
+
   const loadProject = async () => {
     try {
       const [projectRes, photosRes, videosRes] = await Promise.all([
@@ -150,11 +188,14 @@ export default function ProjectPage() {
       setProject(projectRes.data);
       setPhotos(photosRes.data);
 
-      // Map videos to photos
-      const videoMap: Record<string, Video> = {};
+      // Map videos to photos (group by photo_id)
+      const videoMap: Record<string, Video[]> = {};
       videosRes.data.forEach((video: Video) => {
         if (video.photo_id && video.video_type === "scene") {
-          videoMap[video.photo_id] = video;
+          if (!videoMap[video.photo_id]) {
+            videoMap[video.photo_id] = [];
+          }
+          videoMap[video.photo_id].push(video);
         }
       });
       setPhotoVideos(videoMap);
@@ -244,6 +285,21 @@ export default function ProjectPage() {
     }
   };
 
+  const handleResetStuck = async () => {
+    if (!projectId) return;
+
+    try {
+      const response = await api.post(`/projects/${projectId}/reset-stuck`);
+      if (response.data.reset_count > 0) {
+        // Reload project to get updated statuses
+        await loadProject();
+      }
+      setIsApplyingStyle(false);
+    } catch (error) {
+      console.error("Failed to reset stuck photos:", error);
+    }
+  };
+
   const handleRegeneratePhoto = async (photoId: string) => {
     if (!project?.style) return;
 
@@ -256,7 +312,7 @@ export default function ProjectPage() {
 
       await api.post(`/photos/${photoId}/regenerate`, { style: project.style });
 
-      // Poll for completion
+      // Poll for completion with longer interval
       const checkStatus = setInterval(async () => {
         try {
           const response = await api.get(`/photos/${photoId}`);
@@ -274,7 +330,7 @@ export default function ProjectPage() {
           clearInterval(checkStatus);
           setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
         }
-      }, 2000);
+      }, 5000); // Poll every 5 seconds
     } catch (error) {
       console.error("Failed to regenerate photo:", error);
       setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
@@ -337,7 +393,12 @@ export default function ProjectPage() {
       const response = await api.post<Video>(`/photos/${photoId}/generate-video`, {
         prompt: promptToUse,
       });
-      setPhotoVideos((prev) => ({ ...prev, [photoId]: response.data }));
+
+      // Add new video to the list
+      setPhotoVideos((prev) => ({
+        ...prev,
+        [photoId]: [response.data, ...(prev[photoId] || []).map(v => ({ ...v, is_selected: false }))],
+      }));
 
       // Poll for video completion
       const pollInterval = setInterval(async () => {
@@ -349,9 +410,9 @@ export default function ProjectPage() {
             clearInterval(pollInterval);
             setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
 
-            // Get full video details
-            const videoRes = await api.get<Video>(`/videos/${response.data.id}`);
-            setPhotoVideos((prev) => ({ ...prev, [photoId]: videoRes.data }));
+            // Reload all videos for this photo to get updated is_selected states
+            const videosRes = await api.get<Video[]>(`/photos/${photoId}/videos`);
+            setPhotoVideos((prev) => ({ ...prev, [photoId]: videosRes.data }));
           }
         } catch {
           clearInterval(pollInterval);
@@ -362,6 +423,29 @@ export default function ProjectPage() {
       console.error("Failed to generate video:", error);
       setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
     }
+  };
+
+  const handleSelectVideo = async (photoId: string, videoId: string) => {
+    try {
+      await api.post(`/photos/${photoId}/videos/select`, { video_id: videoId });
+
+      // Update local state
+      setPhotoVideos((prev) => ({
+        ...prev,
+        [photoId]: (prev[photoId] || []).map((v) => ({
+          ...v,
+          is_selected: v.id === videoId,
+        })),
+      }));
+    } catch (error) {
+      console.error("Failed to select video:", error);
+    }
+  };
+
+  // Helper to get selected video for a photo
+  const getSelectedVideo = (photoId: string): Video | undefined => {
+    const videos = photoVideos[photoId] || [];
+    return videos.find((v) => v.is_selected) || videos[0];
   };
 
   if (isLoading) {
@@ -540,11 +624,20 @@ export default function ProjectPage() {
 
                 {isProcessing && (
                   <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                      <span className="text-yellow-700 text-sm">
-                        Generating styled images... ({styledCount}/{photos.length})
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                        <span className="text-yellow-700 text-sm">
+                          Generating styled images... ({styledCount}/{photos.length})
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleResetStuck}
+                        className="text-xs text-yellow-700 hover:text-yellow-900 underline"
+                        title="Reset stuck photos if generation seems frozen"
+                      >
+                        Reset
+                      </button>
                     </div>
                     {stylingCount > 0 && (
                       <p className="text-yellow-600 text-xs mt-1">
@@ -580,6 +673,43 @@ export default function ProjectPage() {
                   ))}
                 </div>
 
+                {/* Custom Style Prompt */}
+                <div className="mb-4">
+                  <button
+                    onClick={() => setShowStylePrompt(!showStylePrompt)}
+                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+                  >
+                    <svg
+                      className={`w-4 h-4 transition-transform ${showStylePrompt ? "rotate-90" : ""}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Customize Style Prompt
+                    {stylePrompt && (
+                      <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                        Custom
+                      </span>
+                    )}
+                  </button>
+                  {showStylePrompt && (
+                    <div className="mt-2">
+                      <textarea
+                        value={stylePrompt}
+                        onChange={(e) => setStylePrompt(e.target.value)}
+                        placeholder="Enter a custom prompt for style transfer, or leave empty to use the default prompt for the selected style..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        rows={4}
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Auto-saves as you type. Leave empty to use default style prompt.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Generate Button */}
                 <button
                   onClick={handleGenerateStyledImages}
@@ -593,7 +723,7 @@ export default function ProjectPage() {
                   {isProcessing || isApplyingStyle ? (
                     <span className="flex items-center justify-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Generating...
+                      <GeneratingTimer label="Generating" />
                     </span>
                   ) : (
                     `Generate ${project.style ? project.style.charAt(0).toUpperCase() + project.style.slice(1) : ""} Style`
@@ -679,29 +809,29 @@ export default function ProjectPage() {
                       <div className="pt-4 border-t border-gray-200">
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="text-sm font-medium text-gray-900">Animation Video</h3>
-                          {photoVideos[selectedPhoto.id] && (
+                          {getSelectedVideo(selectedPhoto.id) && (
                             <span
                               className={`px-2 py-1 text-xs rounded-full ${
-                                photoVideos[selectedPhoto.id].status === "ready"
+                                getSelectedVideo(selectedPhoto.id)?.status === "ready"
                                   ? "bg-green-100 text-green-700"
-                                  : photoVideos[selectedPhoto.id].status === "generating"
+                                  : getSelectedVideo(selectedPhoto.id)?.status === "generating"
                                   ? "bg-yellow-100 text-yellow-700"
-                                  : photoVideos[selectedPhoto.id].status === "failed"
+                                  : getSelectedVideo(selectedPhoto.id)?.status === "failed"
                                   ? "bg-red-100 text-red-700"
                                   : "bg-gray-100 text-gray-700"
                               }`}
                             >
-                              {photoVideos[selectedPhoto.id].status}
+                              {getSelectedVideo(selectedPhoto.id)?.status}
                             </span>
                           )}
                         </div>
 
-                        {/* Video Preview */}
-                        {photoVideos[selectedPhoto.id]?.video_url &&
-                         photoVideos[selectedPhoto.id]?.status === "ready" && (
+                        {/* Video Preview - Selected Video */}
+                        {getSelectedVideo(selectedPhoto.id)?.video_url &&
+                         getSelectedVideo(selectedPhoto.id)?.status === "ready" && (
                           <div className="aspect-video bg-black rounded-lg overflow-hidden mb-3">
                             <video
-                              src={`${API_URL}${photoVideos[selectedPhoto.id].video_url}`}
+                              src={`${API_URL}${getSelectedVideo(selectedPhoto.id)?.video_url}`}
                               controls
                               className="w-full h-full object-contain"
                             />
@@ -710,11 +840,56 @@ export default function ProjectPage() {
 
                         {/* Generating State */}
                         {(generatingVideos[selectedPhoto.id] ||
-                          photoVideos[selectedPhoto.id]?.status === "generating") && (
+                          getSelectedVideo(selectedPhoto.id)?.status === "generating") && (
                           <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center mb-3">
                             <div className="text-center">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
-                              <p className="text-xs text-gray-500">Generating video...</p>
+                              <p className="text-xs text-gray-500">
+                                <GeneratingTimer label="Generating video" />
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Video Variants Gallery */}
+                        {(photoVideos[selectedPhoto.id]?.length || 0) > 1 && (
+                          <div className="mb-3">
+                            <p className="text-xs text-gray-600 mb-2">
+                              All Videos ({photoVideos[selectedPhoto.id]?.length}) - Click to select:
+                            </p>
+                            <div className="flex gap-2 overflow-x-auto pb-2">
+                              {photoVideos[selectedPhoto.id]?.filter(v => v.status === "ready").map((video) => (
+                                <button
+                                  key={video.id}
+                                  onClick={() => handleSelectVideo(selectedPhoto.id, video.id)}
+                                  className={`flex-shrink-0 relative rounded-lg overflow-hidden border-2 transition-all ${
+                                    video.is_selected
+                                      ? "border-primary-500 ring-2 ring-primary-200"
+                                      : "border-gray-200 hover:border-gray-300"
+                                  }`}
+                                >
+                                  <video
+                                    src={`${API_URL}${video.video_url}`}
+                                    className="w-20 h-20 object-cover"
+                                    muted
+                                  />
+                                  {video.is_selected && (
+                                    <div className="absolute top-1 right-1 bg-primary-500 text-white rounded-full p-0.5">
+                                      <svg
+                                        className="w-3 h-3"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -725,23 +900,23 @@ export default function ProjectPage() {
                           disabled={
                             !animationPrompt ||
                             generatingVideos[selectedPhoto.id] ||
-                            photoVideos[selectedPhoto.id]?.status === "generating"
+                            getSelectedVideo(selectedPhoto.id)?.status === "generating"
                           }
                           className={`w-full py-2 px-4 rounded-lg font-medium text-sm transition-colors ${
                             !animationPrompt ||
                             generatingVideos[selectedPhoto.id] ||
-                            photoVideos[selectedPhoto.id]?.status === "generating"
+                            getSelectedVideo(selectedPhoto.id)?.status === "generating"
                               ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                               : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
                           }`}
                         >
                           {generatingVideos[selectedPhoto.id] ||
-                           photoVideos[selectedPhoto.id]?.status === "generating" ? (
+                           getSelectedVideo(selectedPhoto.id)?.status === "generating" ? (
                             <span className="flex items-center justify-center gap-2">
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Generating...
+                              <GeneratingTimer label="Generating" />
                             </span>
-                          ) : photoVideos[selectedPhoto.id]?.video_url ? (
+                          ) : getSelectedVideo(selectedPhoto.id)?.video_url ? (
                             "Regenerate Video"
                           ) : (
                             "Generate Video"
@@ -783,7 +958,8 @@ export default function ProjectPage() {
                 {photos.map((photo, index) => {
                   const variants = photoVariants[photo.id] || [];
                   const isRegenerating = loadingVariants[photo.id];
-                  const video = photoVideos[photo.id];
+                  const videos = photoVideos[photo.id] || [];
+                  const video = getSelectedVideo(photo.id);
                   const isGeneratingVideo = generatingVideos[photo.id];
 
                   return (
@@ -816,7 +992,7 @@ export default function ProjectPage() {
                               {photo.status === "styling" || isRegenerating ? (
                                 <span className="flex items-center gap-1">
                                   <div className="animate-spin rounded-full h-3 w-3 border-b border-primary-600"></div>
-                                  Generating...
+                                  <GeneratingTimer label="Generating" />
                                 </span>
                               ) : (
                                 "Regenerate"
@@ -872,7 +1048,7 @@ export default function ProjectPage() {
                                 <div className="text-center">
                                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
                                   <p className="text-sm text-gray-500">
-                                    Generating...
+                                    <GeneratingTimer label="Generating" />
                                   </p>
                                 </div>
                               </div>
@@ -966,10 +1142,10 @@ export default function ProjectPage() {
                               <div className="text-center">
                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-3"></div>
                                 <p className="text-sm text-gray-600">
-                                  Generating video with Kling AI...
+                                  <GeneratingTimer label="Generating video" />
                                 </p>
                                 <p className="text-xs text-gray-400 mt-1">
-                                  This may take a few minutes
+                                  Using Kling AI
                                 </p>
                               </div>
                             </div>
@@ -1001,6 +1177,49 @@ export default function ProjectPage() {
                             </p>
                           </div>
 
+                          {/* Video Variants Gallery */}
+                          {videos.filter(v => v.status === "ready").length > 1 && (
+                            <div className="mb-3">
+                              <p className="text-xs text-gray-600 mb-2">
+                                All Videos ({videos.filter(v => v.status === "ready").length}) - Click to select:
+                              </p>
+                              <div className="flex gap-2 overflow-x-auto pb-2">
+                                {videos.filter(v => v.status === "ready").map((v) => (
+                                  <button
+                                    key={v.id}
+                                    onClick={() => handleSelectVideo(photo.id, v.id)}
+                                    className={`flex-shrink-0 relative rounded-lg overflow-hidden border-2 transition-all ${
+                                      v.is_selected
+                                        ? "border-primary-500 ring-2 ring-primary-200"
+                                        : "border-gray-200 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    <video
+                                      src={`${API_URL}${v.video_url}`}
+                                      className="w-20 h-20 object-cover"
+                                      muted
+                                    />
+                                    {v.is_selected && (
+                                      <div className="absolute top-1 right-1 bg-primary-500 text-white rounded-full p-0.5">
+                                        <svg
+                                          className="w-3 h-3"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Generate Button */}
                           <button
                             onClick={() => handleGenerateVideo(photo.id)}
@@ -1020,7 +1239,7 @@ export default function ProjectPage() {
                             {isGeneratingVideo || video?.status === "generating" ? (
                               <span className="flex items-center justify-center gap-2">
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                Generating...
+                                <GeneratingTimer label="Generating" />
                               </span>
                             ) : video?.video_url ? (
                               "Regenerate Video"
