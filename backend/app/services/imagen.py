@@ -14,10 +14,10 @@ from app.core.config import get_settings
 settings = get_settings()
 
 STYLE_PROMPTS = {
-    "ghibli": "Edit this exact photo to look like a Studio Ghibli anime frame. Keep the SAME people, poses, composition, and background. Apply soft watercolor textures, dreamy pastel colors, and Hayao Miyazaki's distinctive art style. The people should look like anime characters but still be clearly recognizable as themselves. Do NOT change the scene or people - only apply the art style.",
-    "lego": "Edit this exact photo to look like a LEGO scene. Keep the SAME people, poses, composition, and setting. Make everyone look like LEGO minifigures with yellow skin, simple faces, and blocky bodies. The background should look like it's built from LEGO bricks. Do NOT change the scene or people - only apply the LEGO style.",
-    "minecraft": "Edit this exact photo to look like a Minecraft screenshot. Keep the SAME people, poses, composition, and setting. Make everything look blocky and pixelated like Minecraft, with cubic forms and 8-bit textures. Characters should look like Minecraft player skins. Do NOT change the scene or people - only apply the Minecraft style.",
-    "simpsons": "Edit this exact photo to look like a frame from The Simpsons TV show. Keep the SAME people, poses, composition, and setting. Give people yellow skin, overbites, 4 fingers, and the distinctive Simpsons cartoon style. The background should match the 2D animation look of the show. Do NOT change the scene or people - only apply The Simpsons style.",
+    "ghibli": "Restyle this image as a Studio Ghibli anime frame.",
+    "lego": "Restyle this image as a LEGO scene.",
+    "minecraft": "Restyle this image as a Minecraft screenshot.",
+    "simpsons": "Restyle this image as a frame from The Simpsons TV show.",
 }
 
 # Shared thread pool for CPU-bound image operations
