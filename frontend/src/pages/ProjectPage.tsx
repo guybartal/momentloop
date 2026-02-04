@@ -327,6 +327,10 @@ export default function ProjectPage() {
             setPhotos((prev) =>
               prev.map((p) => (p.id === photoId ? photo : p))
             );
+            // Update selectedPhoto if it's the one being regenerated
+            setSelectedPhoto((prev) =>
+              prev?.id === photoId ? photo : prev
+            );
             setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
             // Reload variants
             loadVariants(photoId);
@@ -353,6 +357,10 @@ export default function ProjectPage() {
         prev.map((p) =>
           p.id === photoId ? { ...p, styled_url: response.data.styled_url } : p
         )
+      );
+      // Update selectedPhoto if it's the one being updated
+      setSelectedPhoto((prev) =>
+        prev?.id === photoId ? { ...prev, styled_url: response.data.styled_url } : prev
       );
 
       // Update variants to reflect selection

@@ -138,8 +138,19 @@ class ImagenService:
                 if response.candidates and response.candidates[0].content.parts:
                     for part in response.candidates[0].content.parts:
                         if part.inline_data is not None:
-                            logger.info("Received styled image from %s, %d bytes", model_name, len(part.inline_data.data))
-                            return part.inline_data.data
+                            data = part.inline_data.data
+                            logger.info("Data type from SDK: %s, first 20 bytes: %s", type(data).__name__, repr(data[:20]) if data else None)
+                            # Handle both bytes and base64-encoded string
+                            if isinstance(data, str):
+                                data = base64.b64decode(data)
+                            elif isinstance(data, bytes) and data[:4] != b'\x89PNG' and data[:2] != b'\xff\xd8':
+                                # Might be base64-encoded bytes
+                                try:
+                                    data = base64.b64decode(data)
+                                except Exception:
+                                    pass  # Keep original data
+                            logger.info("Received styled image from %s, %d bytes", model_name, len(data))
+                            return data
                         elif part.text:
                             logger.debug("Model %s response text: %s...", model_name, part.text[:200])
 
