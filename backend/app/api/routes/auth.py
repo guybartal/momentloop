@@ -1,8 +1,9 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.core.security import create_access_token
 from app.models.user import User
 from app.schemas.user import GoogleUserInfo, TokenResponse, UserResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
 
@@ -28,7 +31,8 @@ PHOTOS_SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly
 
 
 @router.get("/google")
-async def google_login():
+@limiter.limit(settings.rate_limit_auth)
+async def google_login(request: Request):
     """Redirect to Google OAuth consent screen."""
     params = {
         "client_id": settings.google_client_id,
@@ -43,7 +47,8 @@ async def google_login():
 
 
 @router.get("/google/photos")
-async def google_photos_auth(current_user: User = Depends(get_current_user)):
+@limiter.limit(settings.rate_limit_auth)
+async def google_photos_auth(request: Request, current_user: User = Depends(get_current_user)):
     """Redirect to Google OAuth with Photos scope for importing photos."""
     # Include Photos scope along with basic scopes
     params = {
@@ -60,7 +65,8 @@ async def google_photos_auth(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/callback")
-async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
+@limiter.limit(settings.rate_limit_auth)
+async def google_callback(request: Request, code: str, db: AsyncSession = Depends(get_db)):
     """Handle Google OAuth callback."""
     # Exchange code for tokens
     async with httpx.AsyncClient() as client:
@@ -76,9 +82,12 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         )
 
         if token_response.status_code != 200:
-            print(f"Token exchange failed: {token_response.status_code}")
-            print(f"Response: {token_response.text}")
-            print(f"Redirect URI used: {settings.google_redirect_uri}")
+            logger.warning(
+                "Token exchange failed: %d - %s (redirect_uri: %s)",
+                token_response.status_code,
+                token_response.text,
+                settings.google_redirect_uri,
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Failed to exchange code for token: {token_response.text}",
@@ -143,19 +152,20 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/callback/photos")
+@limiter.limit(settings.rate_limit_auth)
 async def google_photos_callback(
+    request: Request,
     code: str,
     state: str,
     scope: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Handle Google OAuth callback with Photos scope."""
-    # Log the granted scopes
-    print(f"Photos callback - Granted scopes: {scope}")
+    logger.debug("Photos callback - Granted scopes: %s", scope)
 
     # Check if photos scope was actually granted
     if scope and "photoslibrary" not in scope:
-        print("WARNING: Photos scope was NOT granted by user!")
+        logger.warning("Photos scope was NOT granted by user")
 
     # Exchange code for tokens
     async with httpx.AsyncClient() as client:
@@ -171,8 +181,11 @@ async def google_photos_callback(
         )
 
         if token_response.status_code != 200:
-            print(f"Photos token exchange failed: {token_response.status_code}")
-            print(f"Response: {token_response.text}")
+            logger.warning(
+                "Photos token exchange failed: %d - %s",
+                token_response.status_code,
+                token_response.text,
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Failed to exchange code for token: {token_response.text}",
@@ -184,9 +197,7 @@ async def google_photos_callback(
         expires_in = tokens.get("expires_in", 3600)
         token_scope = tokens.get("scope", "")
 
-        print(f"Token exchange successful!")
-        print(f"Token scope from response: {token_scope}")
-        print(f"Access token (first 50 chars): {access_token[:50] if access_token else 'None'}")
+        logger.info("Photos token exchange successful, scope: %s", token_scope)
 
     # Update user with new tokens
     result = await db.execute(select(User).where(User.id == state))
@@ -293,7 +304,7 @@ async def refresh_google_token(user: User, db: AsyncSession) -> str | None:
         )
 
         if response.status_code != 200:
-            print(f"Token refresh failed: {response.text}")
+            logger.warning("Token refresh failed: %s", response.text)
             return None
 
         tokens = response.json()

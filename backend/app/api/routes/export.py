@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -14,6 +15,7 @@ from app.schemas.export import ExportCreate, ExportResponse, ExportStatusRespons
 from app.services.ffmpeg import ffmpeg_service
 from app.services.storage import storage_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -94,7 +96,7 @@ async def process_export(
             await db.commit()
 
         except Exception as e:
-            print(f"Export failed for export {export_id}: {e}")
+            logger.error("Export failed for export %s: %s", export_id, e, exc_info=True)
             export.status = "failed"
             await db.commit()
 

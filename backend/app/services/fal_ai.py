@@ -1,13 +1,16 @@
 import asyncio
 import base64
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import fal_client
 import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Shared thread pool for fal.ai operations
@@ -81,11 +84,14 @@ class FalAIService:
 
         # Get model endpoint
         model_id = self.MODELS.get(model, self.MODELS["pro"])
-        print(f"Using Kling model: {model_id}")
+        logger.info("Using Kling model: %s", model_id)
+        logger.info("Sending prompt to fal.ai: %s", prompt)
+        logger.info("Image path: %s, Image size: %d bytes", image_path, len(image_data))
 
-        # Submit to fal.ai in thread pool
-        def submit_job():
-            return fal_client.subscribe(
+        # Submit to fal.ai and wait for result
+        def run_job():
+            # Use submit + get for synchronous execution with polling
+            handle = fal_client.submit(
                 model_id,
                 arguments={
                     "prompt": prompt,
@@ -93,12 +99,13 @@ class FalAIService:
                     "duration": "5" if duration <= 5 else "10",
                     "aspect_ratio": "16:9",
                 },
-                with_logs=True,
             )
+            # Poll for result (this blocks until complete)
+            return handle.get()
 
-        result = await loop.run_in_executor(_fal_executor, submit_job)
+        result = await loop.run_in_executor(_fal_executor, run_job)
 
-        print(f"Kling response: {result}")
+        logger.info("Kling response received")
 
         # Download the video
         video_url = result.get("video", {}).get("url")
@@ -106,10 +113,21 @@ class FalAIService:
             raise RuntimeError(f"No video URL in response: {result}")
 
         client = await self._get_http_client()
-        response = await client.get(video_url)
+        response = await self._download_with_retry(client, video_url)
+        return response.content
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException)),
+        reraise=True,
+    )
+    async def _download_with_retry(self, client: httpx.AsyncClient, url: str) -> httpx.Response:
+        """Download video with retry logic."""
+        response = await client.get(url)
         if response.status_code != 200:
             raise RuntimeError(f"Failed to download video: {response.status_code}")
-        return response.content
+        return response
 
     async def generate_transition(
         self,
@@ -143,13 +161,9 @@ class FalAIService:
 
     async def check_status(self, request_id: str, model: str = "pro") -> dict:
         """Check the status of a video generation request."""
-        model_id = self.MODELS.get(model, self.MODELS["pro"])
-
-        def get_status():
-            return fal_client.status(model_id, request_id)
-
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(_fal_executor, get_status)
+        # Note: With the new fal_client API, we use submit().get() which blocks
+        # until completion, so this method is less useful. Kept for compatibility.
+        return {"status": "unknown"}
 
     async def close(self):
         """Clean up resources."""

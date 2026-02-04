@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import type { Project, Photo, StyleType, StyledVariant, Video } from "../types";
 import api from "../services/api";
 import ImageUploader from "../components/upload/ImageUploader";
@@ -182,11 +183,11 @@ export default function ProjectPage() {
     try {
       const [projectRes, photosRes, videosRes] = await Promise.all([
         api.get<Project>(`/projects/${projectId}`),
-        api.get<Photo[]>(`/projects/${projectId}/photos`),
+        api.get<{ items: Photo[]; total: number }>(`/projects/${projectId}/photos`),
         api.get<Video[]>(`/projects/${projectId}/videos`),
       ]);
       setProject(projectRes.data);
-      setPhotos(photosRes.data);
+      setPhotos(photosRes.data.items);
 
       // Map videos to photos (group by photo_id)
       const videoMap: Record<string, Video[]> = {};
@@ -201,7 +202,7 @@ export default function ProjectPage() {
       setPhotoVideos(videoMap);
 
       // Load variants for each photo
-      photosRes.data.forEach((photo: Photo) => {
+      photosRes.data.items.forEach((photo: Photo) => {
         if (photo.styled_url) {
           loadVariants(photo.id);
         }
@@ -252,7 +253,9 @@ export default function ProjectPage() {
       if (selectedPhoto?.id === photoId) {
         setSelectedPhoto(null);
       }
+      toast.success("Photo deleted");
     } catch (error) {
+      toast.error("Failed to delete photo");
       console.error("Failed to delete photo:", error);
     }
   };
@@ -279,7 +282,9 @@ export default function ProjectPage() {
     try {
       await api.post(`/projects/${projectId}/stylize`, { style: project.style });
       setProject({ ...project, status: "processing" });
+      toast.success("Style transfer started");
     } catch (error) {
+      toast.error("Failed to apply style");
       console.error("Failed to apply style:", error);
       setIsApplyingStyle(false);
     }
@@ -366,8 +371,10 @@ export default function ProjectPage() {
   const handleDeleteProject = async () => {
     try {
       await api.delete(`/projects/${projectId}`);
+      toast.success("Project deleted");
       navigate("/");
     } catch (error) {
+      toast.error("Failed to delete project");
       console.error("Failed to delete project:", error);
     }
   };
@@ -375,14 +382,14 @@ export default function ProjectPage() {
   const handleGenerateVideo = async (photoId: string) => {
     const photo = photos.find((p) => p.id === photoId);
     if (!photo?.styled_url) {
-      console.error("Photo must be styled first");
+      toast.error("Photo must be styled first");
       return;
     }
 
     // Use current animationPrompt state if this is the selected photo, otherwise use saved prompt
     const promptToUse = selectedPhoto?.id === photoId ? animationPrompt : photo.animation_prompt;
     if (!promptToUse) {
-      console.error("Photo must have an animation prompt");
+      toast.error("Photo must have an animation prompt");
       return;
     }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useAuthStore } from "../store/authStore";
 import type { Project } from "../types";
 import api from "../services/api";
@@ -21,6 +22,7 @@ export default function DashboardPage() {
       const response = await api.get<Project[]>("/projects");
       setProjects(response.data);
     } catch (error) {
+      toast.error("Failed to load projects");
       console.error("Failed to load projects:", error);
     } finally {
       setIsLoading(false);
@@ -36,9 +38,11 @@ export default function DashboardPage() {
       });
       setNewProjectName("");
       setShowCreateModal(false);
+      toast.success("Project created");
       // Navigate to the new project page
       navigate(`/projects/${response.data.id}`);
     } catch (error) {
+      toast.error("Failed to create project");
       console.error("Failed to create project:", error);
     }
   };

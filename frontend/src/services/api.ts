@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toast } from "sonner";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -18,13 +19,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle auth errors
+// Handle auth errors and show toast for other errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       window.location.href = "/login";
+    } else if (error.response?.status === 429) {
+      toast.error("Too many requests. Please slow down.");
+    } else if (error.response?.status >= 500) {
+      toast.error("Server error. Please try again later.");
     }
     return Promise.reject(error);
   }

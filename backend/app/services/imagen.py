@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import io
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from PIL import Image
 
 from app.core.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 STYLE_PROMPTS = {
@@ -79,7 +81,7 @@ class ImagenService:
 
         image, img_base64 = await loop.run_in_executor(_image_executor, prepare_image)
 
-        print(f"Sending image to Gemini for {style} style transfer...")
+        logger.info("Sending image to Gemini for %s style transfer", style)
 
         # Try SDK first
         if self.client:
@@ -88,7 +90,7 @@ class ImagenService:
                 if result:
                     return result
             except Exception as e:
-                print(f"SDK method failed: {e}")
+                logger.warning("SDK method failed: %s", e)
 
         # Fallback to direct REST API
         try:
@@ -96,12 +98,10 @@ class ImagenService:
             if result:
                 return result
         except Exception as e:
-            print(f"REST API method failed: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("REST API method failed: %s", e, exc_info=True)
 
         # Last resort: Apply PIL filters as placeholder
-        print("WARNING: Using PIL fallback filters - API calls failed")
+        logger.warning("Using PIL fallback filters - API calls failed")
         return await loop.run_in_executor(
             _image_executor,
             self._apply_pil_fallback,
@@ -122,7 +122,7 @@ class ImagenService:
 
         for model_name in models_to_try:
             try:
-                print(f"Trying SDK with model: {model_name}")
+                logger.debug("Trying SDK with model: %s", model_name)
 
                 def call_sdk():
                     return self.client.models.generate_content(
@@ -138,13 +138,13 @@ class ImagenService:
                 if response.candidates and response.candidates[0].content.parts:
                     for part in response.candidates[0].content.parts:
                         if part.inline_data is not None:
-                            print(f"Received styled image from {model_name}, {len(part.inline_data.data)} bytes")
+                            logger.info("Received styled image from %s, %d bytes", model_name, len(part.inline_data.data))
                             return part.inline_data.data
                         elif part.text:
-                            print(f"Model {model_name} response text: {part.text[:200]}...")
+                            logger.debug("Model %s response text: %s...", model_name, part.text[:200])
 
             except Exception as e:
-                print(f"Model {model_name} failed: {e}")
+                logger.debug("Model %s failed: %s", model_name, e)
                 continue
 
         return None
@@ -161,7 +161,7 @@ class ImagenService:
 
         for model in models:
             try:
-                print(f"Trying REST API with model: {model}")
+                logger.debug("Trying REST API with model: %s", model)
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
                 payload = {
@@ -197,15 +197,15 @@ class ImagenService:
                         for part in parts:
                             if "inlineData" in part:
                                 image_data = base64.b64decode(part["inlineData"]["data"])
-                                print(f"Received styled image from REST API ({model}), {len(image_data)} bytes")
+                                logger.info("Received styled image from REST API (%s), %d bytes", model, len(image_data))
                                 return image_data
                             elif "text" in part:
-                                print(f"REST API {model} text response: {part['text'][:200]}...")
+                                logger.debug("REST API %s text response: %s...", model, part["text"][:200])
                 else:
-                    print(f"REST API {model} error: {response.status_code} - {response.text[:500]}")
+                    logger.warning("REST API %s error: %d - %s", model, response.status_code, response.text[:500])
 
             except Exception as e:
-                print(f"REST API {model} failed: {e}")
+                logger.debug("REST API %s failed: %s", model, e)
                 continue
 
         return None

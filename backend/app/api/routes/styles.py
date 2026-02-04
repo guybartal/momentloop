@@ -1,13 +1,15 @@
 import asyncio
-import traceback
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
+from app.core.concurrency import get_semaphore_manager
 from app.core.database import get_db, background_session_maker
 from app.models.photo import Photo
 from app.models.project import Project
@@ -16,12 +18,10 @@ from app.models.user import User
 from app.services.imagen import imagen_service
 from app.services.storage import storage_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 VALID_STYLES = {"ghibli", "lego", "minecraft", "simpsons"}
-
-# Limit concurrent style transfer operations to avoid overwhelming the API
-STYLE_TRANSFER_SEMAPHORE = asyncio.Semaphore(3)
 
 
 class StyleRequest(BaseModel):
@@ -42,24 +42,24 @@ async def process_single_photo_style(
     Process style transfer for a single photo.
     Returns (photo_id, success, styled_path or error message)
     """
-    async with STYLE_TRANSFER_SEMAPHORE:
+    semaphore_manager = get_semaphore_manager()
+    async with semaphore_manager.style_transfer:
         try:
             full_path = storage_service.get_full_path(original_path)
-            print(f"Processing image at: {full_path}")
+            logger.debug("Processing image at: %s", full_path)
 
             # Apply style transfer with optional custom prompt
             styled_bytes = await imagen_service.apply_style(full_path, style, custom_prompt)
-            print(f"Style transfer complete for photo {photo_id}, got {len(styled_bytes)} bytes")
+            logger.debug("Style transfer complete for photo %s, got %d bytes", photo_id, len(styled_bytes))
 
             # Save the styled image
             styled_path = await storage_service.save_styled(styled_bytes, original_path)
-            print(f"Saved styled image to: {styled_path}")
+            logger.debug("Saved styled image to: %s", styled_path)
 
             return (photo_id, True, styled_path)
 
         except Exception as e:
-            print(f"Style transfer failed for photo {photo_id}: {e}")
-            traceback.print_exc()
+            logger.error("Style transfer failed for photo %s: %s", photo_id, e, exc_info=True)
             return (photo_id, False, str(e))
 
 
@@ -104,7 +104,7 @@ async def save_photo_result(
             photo.styled_path = styled_path
             photo.status = "styled"
             await db.commit()
-            print(f"Photo {photo_id} status updated to 'styled'")
+            logger.info("Photo %s status updated to 'styled'", photo_id)
 
 
 async def process_style_transfer_for_photo(
@@ -114,7 +114,7 @@ async def process_style_transfer_for_photo(
     custom_prompt: str | None = None,
 ):
     """Background task to process style transfer for a single photo."""
-    print(f"Starting style transfer for photo {photo_id} with style {style}")
+    logger.info("Starting style transfer for photo %s with style %s", photo_id, style)
 
     # Get photo path
     async with background_session_maker() as db:
@@ -123,7 +123,7 @@ async def process_style_transfer_for_photo(
         )
         row = result.first()
         if not row:
-            print(f"Photo {photo_id} not found")
+            logger.warning("Photo %s not found", photo_id)
             return
         original_path = row[0]
 
@@ -147,7 +147,7 @@ async def process_project_style_transfer(
     custom_prompt: str | None = None,
 ):
     """Background task to process style transfer for all photos in a project concurrently."""
-    print(f"Starting style transfer for project {project_id} with style {style}")
+    logger.info("Starting style transfer for project %s with style %s", project_id, style)
 
     # Get all photo IDs and paths
     async with background_session_maker() as db:
@@ -157,7 +157,7 @@ async def process_project_style_transfer(
             .order_by(Photo.position)
         )
         photo_data = [(row[0], row[1]) for row in result.fetchall()]
-        print(f"Found {len(photo_data)} photos to process")
+        logger.info("Found %d photos to process", len(photo_data))
 
     if not photo_data:
         return
@@ -181,7 +181,7 @@ async def process_project_style_transfer(
     # Save results
     for result in results:
         if isinstance(result, Exception):
-            print(f"Task failed with exception: {result}")
+            logger.error("Task failed with exception: %s", result)
             continue
 
         photo_id, success, styled_path_or_error = result
@@ -198,7 +198,7 @@ async def process_project_style_transfer(
             project.status = "draft"
             await db.commit()
 
-    print(f"Project {project_id} style transfer complete")
+    logger.info("Project %s style transfer complete", project_id)
 
 
 @router.post("/projects/{project_id}/stylize")

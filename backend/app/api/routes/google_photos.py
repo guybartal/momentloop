@@ -11,7 +11,7 @@ The Picker API works differently:
 4. Retrieve the selected media items
 """
 
-import asyncio
+import logging
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.api.deps import get_current_user
 from app.api.routes.auth import refresh_google_token
@@ -29,6 +30,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.services.storage import storage_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GOOGLE_PHOTOS_PICKER_API = "https://photospicker.googleapis.com/v1"
@@ -50,6 +52,15 @@ async def _get_photos_client() -> httpx.AsyncClient:
 
 class ImportPhotosRequest(BaseModel):
     session_id: str
+
+
+# Retry decorator for Google Photos API calls
+_api_retry = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type(httpx.RequestError),
+    reraise=True,
+)
 
 
 async def get_valid_google_token(user: User, db: AsyncSession) -> str:
@@ -108,14 +119,14 @@ async def create_picker_session(
                 "expire_time": data.get("expireTime"),
             }
         else:
-            print(f"Picker session creation failed: {response.status_code} - {response.text}")
+            logger.warning("Picker session creation failed: %d - %s", response.status_code, response.text)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to create picker session: {response.text}",
             )
 
     except httpx.RequestError as e:
-        print(f"Google Photos Picker API request error: {e}")
+        logger.error("Google Photos Picker API request error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to connect to Google Photos Picker API",
@@ -161,7 +172,7 @@ async def get_picker_session(
             )
 
     except httpx.RequestError as e:
-        print(f"Google Photos Picker API request error: {e}")
+        logger.error("Google Photos Picker API request error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to connect to Google Photos Picker API",
@@ -226,14 +237,14 @@ async def list_session_media_items(
                 detail="User has not finished selecting photos yet",
             )
         else:
-            print(f"Failed to list media items: {response.status_code} - {response.text}")
+            logger.warning("Failed to list media items: %d - %s", response.status_code, response.text)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to list media items: {response.text}",
             )
 
     except httpx.RequestError as e:
-        print(f"Google Photos Picker API request error: {e}")
+        logger.error("Google Photos Picker API request error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to connect to Google Photos Picker API",
@@ -376,7 +387,7 @@ async def import_google_photos(
             imported_photos.append(photo)
 
         except Exception as e:
-            print(f"Failed to import photo {photo_info['id']}: {e}")
+            logger.warning("Failed to import photo %s: %s", photo_info["id"], e)
             errors.append({"id": photo_info["id"], "error": str(e)})
 
     await db.commit()

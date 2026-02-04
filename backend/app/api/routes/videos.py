@@ -1,5 +1,5 @@
 import asyncio
-import traceback
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.concurrency import get_semaphore_manager
 from app.core.database import get_db, background_session_maker
 from app.models.photo import Photo
 from app.models.project import Project
@@ -16,10 +17,8 @@ from app.schemas.video import GenerateVideoRequest, SelectVideoRequest, Transiti
 from app.services.fal_ai import fal_ai_service
 from app.services.storage import storage_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Limit concurrent video generation operations
-VIDEO_GENERATION_SEMAPHORE = asyncio.Semaphore(5)
 
 
 def video_to_response(video: Video) -> VideoResponse:
@@ -60,8 +59,9 @@ async def process_video_generation(
     photo_id: UUID | None = None,
 ):
     """Background task to process video generation."""
-    async with VIDEO_GENERATION_SEMAPHORE:
-        print(f"Starting video generation for video {video_id}")
+    semaphore_manager = get_semaphore_manager()
+    async with semaphore_manager.video_generation:
+        logger.info("Starting video generation for video %s", video_id)
 
         # Update status to generating
         await update_video_status(video_id, "generating")
@@ -73,13 +73,13 @@ async def process_video_generation(
                 prompt,
                 duration=5.0,
             )
-            print(f"Video generation complete for {video_id}, got {len(video_bytes)} bytes")
+            logger.info("Video generation complete for %s, got %d bytes", video_id, len(video_bytes))
 
             # Save video
             video_path = await storage_service.save_video(
                 video_bytes, project_id, "scene"
             )
-            print(f"Saved video to: {video_path}")
+            logger.debug("Saved video to: %s", video_path)
 
             # Update record and mark as selected (deselect others for same photo)
             async with background_session_maker() as db:
@@ -104,11 +104,10 @@ async def process_video_generation(
                     video.is_selected = True
                     await db.commit()
 
-            print(f"Video {video_id} status updated to 'ready'")
+            logger.info("Video %s status updated to 'ready'", video_id)
 
         except Exception as e:
-            print(f"Video generation failed for video {video_id}: {e}")
-            traceback.print_exc()
+            logger.error("Video generation failed for video %s: %s", video_id, e, exc_info=True)
             await update_video_status(video_id, "failed")
 
 

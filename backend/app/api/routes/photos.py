@@ -1,14 +1,16 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
+from app.schemas.pagination import PaginatedResponse
 from app.schemas.photo import PhotoReorderRequest, PhotoResponse, PhotoUpdate
 from app.services.storage import storage_service
 from app.services.prompt_generator import prompt_generator_service
@@ -112,13 +114,15 @@ async def upload_photos(
     return [photo_to_response(photo) for photo in uploaded_photos]
 
 
-@router.get("/projects/{project_id}/photos", response_model=list[PhotoResponse])
+@router.get("/projects/{project_id}/photos", response_model=PaginatedResponse[PhotoResponse])
 async def list_photos(
     project_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all photos in a project."""
+    """List all photos in a project with pagination."""
     # Verify project ownership
     result = await db.execute(
         select(Project).where(
@@ -134,14 +138,30 @@ async def list_photos(
             detail="Project not found",
         )
 
+    # Get total count
+    count_result = await db.execute(
+        select(func.count(Photo.id)).where(Photo.project_id == project_id)
+    )
+    total = count_result.scalar() or 0
+
+    # Get paginated photos
     result = await db.execute(
         select(Photo)
+        .options(selectinload(Photo.variants))
         .where(Photo.project_id == project_id)
         .order_by(Photo.position)
+        .offset(skip)
+        .limit(limit)
     )
     photos = result.scalars().all()
 
-    return [photo_to_response(photo) for photo in photos]
+    return PaginatedResponse(
+        items=[photo_to_response(photo) for photo in photos],
+        total=total,
+        skip=skip,
+        limit=limit,
+        has_more=skip + len(photos) < total,
+    )
 
 
 @router.get("/photos/{photo_id}", response_model=PhotoResponse)
