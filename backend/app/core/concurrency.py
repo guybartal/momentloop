@@ -14,6 +14,7 @@ class SemaphoreManager:
         self._style_transfer = asyncio.Semaphore(settings.max_concurrent_style_transfers)
         self._video_generation = asyncio.Semaphore(settings.max_concurrent_video_generations)
         self._exports = asyncio.Semaphore(settings.max_concurrent_exports)
+        self._prompt_generation = asyncio.Semaphore(settings.max_concurrent_prompt_generations)
 
     @property
     def style_transfer(self) -> asyncio.Semaphore:
@@ -29,6 +30,11 @@ class SemaphoreManager:
     def exports(self) -> asyncio.Semaphore:
         """Semaphore for export operations."""
         return self._exports
+
+    @property
+    def prompt_generation(self) -> asyncio.Semaphore:
+        """Semaphore for prompt generation operations."""
+        return self._prompt_generation
 
 
 # Global semaphore manager instance

@@ -27,6 +27,8 @@ class Photo(Base):
     original_path: Mapped[str] = mapped_column(Text, nullable=False)
     styled_path: Mapped[str | None] = mapped_column(Text)
     animation_prompt: Mapped[str | None] = mapped_column(Text)
+    # Prompt generation status: pending, generating, completed, failed
+    prompt_generation_status: Mapped[str] = mapped_column(String(20), default="pending")
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="uploaded")  # uploaded, styled, ready
     created_at: Mapped[datetime] = mapped_column(

@@ -1,4 +1,6 @@
 from uuid import UUID
+import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
@@ -6,19 +8,104 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
+from app.core.concurrency import get_semaphore_manager
 from app.core.database import get_db
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.pagination import PaginatedResponse
-from app.schemas.photo import PhotoReorderRequest, PhotoResponse, PhotoUpdate
+from app.schemas.photo import PhotoReorderRequest, PhotoResponse, PhotoUpdate, RegeneratePromptRequest
 from app.services.storage import storage_service
 from app.services.prompt_generator import prompt_generator_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+async def generate_prompt_for_photo(photo_id: UUID, database_url: str, max_retries: int = 3):
+    """Background task to generate video prompt for a photo."""
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    logger.info(f"Starting prompt generation task for photo {photo_id}")
+
+    # Use semaphore to limit concurrent AI API calls
+    semaphore_manager = get_semaphore_manager()
+    async with semaphore_manager.prompt_generation:
+        logger.info(f"Acquired semaphore for photo {photo_id}")
+
+        engine = create_async_engine(database_url)
+        async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+        try:
+            async with async_session() as db:
+                result = await db.execute(select(Photo).where(Photo.id == photo_id))
+                photo = result.scalar_one_or_none()
+
+                if not photo:
+                    logger.warning(f"Photo {photo_id} not found for prompt generation")
+                    return
+
+                # Skip if prompt already exists and status is completed
+                if photo.animation_prompt and photo.prompt_generation_status == "completed":
+                    logger.info(f"Photo {photo_id} already has a prompt, skipping")
+                    return
+
+                # Set status to generating
+                photo.prompt_generation_status = "generating"
+                await db.commit()
+
+                # Use original image for prompt generation
+                image_path = storage_service.get_full_path(photo.original_path)
+                logger.info(f"Generating prompt for photo {photo_id} using image: {image_path}")
+
+                # Retry logic for rate limiting
+                last_error = None
+                for attempt in range(max_retries):
+                    try:
+                        prompt = await prompt_generator_service.generate_video_prompt(image_path)
+                        photo.animation_prompt = prompt
+                        photo.prompt_generation_status = "completed"
+                        await db.commit()
+                        logger.info(f"Generated video prompt for photo {photo_id}: {prompt[:50]}...")
+                        return
+                    except Exception as e:
+                        last_error = e
+                        error_str = str(e)
+                        # Check for rate limiting errors
+                        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                            wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                            logger.warning(
+                                f"Rate limited on attempt {attempt + 1}/{max_retries} for photo {photo_id}, "
+                                f"waiting {wait_time}s before retry"
+                            )
+                            await asyncio.sleep(wait_time)
+                        else:
+                            # Non-rate-limit error, don't retry
+                            break
+
+                # All retries failed
+                logger.error(f"Failed to generate prompt for photo {photo_id} after {max_retries} attempts: {last_error}")
+                photo.prompt_generation_status = "failed"
+                await db.commit()
+
+        except Exception as e:
+            logger.error(f"Database error in prompt generation for {photo_id}: {e}", exc_info=True)
+            # Try to mark as failed
+            try:
+                async with async_session() as db:
+                    result = await db.execute(select(Photo).where(Photo.id == photo_id))
+                    photo = result.scalar_one_or_none()
+                    if photo:
+                        photo.prompt_generation_status = "failed"
+                        await db.commit()
+            except Exception:
+                pass
+        finally:
+            await engine.dispose()
 
 
 def photo_to_response(photo: Photo) -> PhotoResponse:
@@ -31,6 +118,7 @@ def photo_to_response(photo: Photo) -> PhotoResponse:
         styled_path=photo.styled_path,
         styled_url=storage_service.get_url(photo.styled_path) if photo.styled_path else None,
         animation_prompt=photo.animation_prompt,
+        prompt_generation_status=photo.prompt_generation_status,
         position=photo.position,
         status=photo.status,
         created_at=photo.created_at,
@@ -110,6 +198,14 @@ async def upload_photos(
     # Refresh all photos to get IDs
     for photo in uploaded_photos:
         await db.refresh(photo)
+
+    # Start background prompt generation for each photo
+    from app.core.config import get_settings
+    settings = get_settings()
+    for photo in uploaded_photos:
+        asyncio.create_task(
+            generate_prompt_for_photo(photo.id, settings.database_url)
+        )
 
     return [photo_to_response(photo) for photo in uploaded_photos]
 
@@ -328,7 +424,7 @@ async def generate_animation_prompt(
 @router.post("/photos/{photo_id}/regenerate-prompt")
 async def regenerate_animation_prompt(
     photo_id: UUID,
-    feedback: str | None = None,
+    request: RegeneratePromptRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -355,7 +451,7 @@ async def regenerate_animation_prompt(
 
     # Regenerate prompt
     prompt = await prompt_generator_service.regenerate_prompt(
-        image_path, current_prompt, feedback
+        image_path, current_prompt, request.feedback
     )
 
     # Save to database

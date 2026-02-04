@@ -146,23 +146,57 @@ async def process_project_style_transfer(
     style: str,
     custom_prompt: str | None = None,
 ):
-    """Background task to process style transfer for all photos in a project concurrently."""
+    """Background task to process style transfer for photos that need it.
+
+    Only processes photos that:
+    - Are in "uploaded" status (new images without styled versions), OR
+    - Have styled variants but none with the current style
+    """
     logger.info("Starting style transfer for project %s with style %s", project_id, style)
 
-    # Get all photo IDs and paths
+    # Get photos that need processing
     async with background_session_maker() as db:
+        # Get all photos with their variants
         result = await db.execute(
-            select(Photo.id, Photo.original_path)
+            select(Photo)
             .where(Photo.project_id == project_id)
+            .options(selectinload(Photo.variants))
             .order_by(Photo.position)
         )
-        photo_data = [(row[0], row[1]) for row in result.fetchall()]
-        logger.info("Found %d photos to process", len(photo_data))
+        all_photos = result.scalars().all()
+
+        # Filter to only photos that need styling
+        photo_data = []
+        for photo in all_photos:
+            needs_styling = False
+
+            if photo.status == "uploaded":
+                # New photo without any styled version
+                needs_styling = True
+            elif photo.styled_path:
+                # Photo has a styled version - check if any variant matches the current style
+                variant_styles = {v.style for v in photo.variants}
+                if style not in variant_styles:
+                    # Photo is styled but not in the requested style
+                    needs_styling = True
+
+            if needs_styling:
+                photo_data.append((photo.id, photo.original_path))
+
+        logger.info("Found %d photos to process (out of %d total)", len(photo_data), len(all_photos))
 
     if not photo_data:
+        # No photos need processing, update project status back to draft
+        async with background_session_maker() as db:
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            if project:
+                project.status = "draft"
+                await db.commit()
+        logger.info("No photos need styling for project %s", project_id)
         return
 
-    # Mark all photos as styling
+    # Mark only the photos that need processing as styling
     async with background_session_maker() as db:
         for photo_id, _ in photo_data:
             result = await db.execute(select(Photo).where(Photo.id == photo_id))

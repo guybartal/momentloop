@@ -25,6 +25,7 @@ class PhotoResponse(BaseModel):
     styled_path: str | None
     styled_url: str | None
     animation_prompt: str | None
+    prompt_generation_status: str  # pending, generating, completed, failed
     position: int
     status: str
     created_at: datetime
@@ -35,3 +36,7 @@ class PhotoResponse(BaseModel):
 
 class PhotoReorderRequest(BaseModel):
     photo_ids: list[uuid.UUID]
+
+
+class RegeneratePromptRequest(BaseModel):
+    feedback: str | None = None

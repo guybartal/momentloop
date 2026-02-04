@@ -11,6 +11,7 @@ The Picker API works differently:
 4. Retrieve the selected media items
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
@@ -24,6 +25,8 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from app.api.deps import get_current_user
 from app.api.routes.auth import refresh_google_token
+from app.api.routes.photos import generate_prompt_for_photo
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.photo import Photo
 from app.models.project import Project
@@ -395,6 +398,15 @@ async def import_google_photos(
     # Refresh all photos to get IDs
     for photo in imported_photos:
         await db.refresh(photo)
+
+    # Start background prompt generation for each photo
+    settings = get_settings()
+    logger.info(f"Starting prompt generation for {len(imported_photos)} imported photos")
+    for photo in imported_photos:
+        logger.info(f"Creating prompt generation task for photo {photo.id}")
+        asyncio.create_task(
+            generate_prompt_for_photo(photo.id, settings.database_url)
+        )
 
     # Delete the session to clean up
     try:

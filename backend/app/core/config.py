@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     max_concurrent_style_transfers: int = 3
     max_concurrent_video_generations: int = 5
     max_concurrent_exports: int = 2
+    max_concurrent_prompt_generations: int = 5
 
     # File retention (days)
     export_retention_days: int = 7

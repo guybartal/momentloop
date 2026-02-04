@@ -50,6 +50,10 @@ export default function ProjectPage() {
   const [generatingVideos, setGeneratingVideos] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
 
+  // Track prompt regeneration UI state
+  const [showPromptFeedback, setShowPromptFeedback] = useState(false);
+  const [promptFeedback, setPromptFeedback] = useState("");
+
   // Track animation prompt for debounced saving
   const [animationPrompt, setAnimationPrompt] = useState<string>("");
   const debouncedPrompt = useDebounce(animationPrompt, 1000);
@@ -76,13 +80,13 @@ export default function ProjectPage() {
         const response = await api.get(`/projects/${projectId}/style-status`);
         const data = response.data;
 
-        // Update photos with new statuses
+        // Update photos with new statuses immediately as they complete
         setPhotos((prev) =>
           prev.map((photo) => {
             const updated = data.photos.find(
               (p: { photo_id: string }) => p.photo_id === photo.id
             );
-            if (updated) {
+            if (updated && (updated.status !== photo.status || updated.styled_url !== photo.styled_url)) {
               return {
                 ...photo,
                 status: updated.status,
@@ -92,6 +96,22 @@ export default function ProjectPage() {
             return photo;
           })
         );
+
+        // Also update selectedPhoto if it just finished styling
+        setSelectedPhoto((prev: Photo | null) => {
+          if (!prev) return prev;
+          const updated = data.photos.find(
+            (p: { photo_id: string }) => p.photo_id === prev.id
+          );
+          if (updated && (updated.status !== prev.status || updated.styled_url !== prev.styled_url)) {
+            return {
+              ...prev,
+              status: updated.status,
+              styled_url: updated.styled_url,
+            };
+          }
+          return prev;
+        });
 
         // Update project status if done
         if (data.project_status !== "processing") {
@@ -105,10 +125,47 @@ export default function ProjectPage() {
       } catch (error) {
         console.error("Failed to check style status:", error);
       }
-    }, 5000); // Poll every 5 seconds instead of 2
+    }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
   }, [project?.status, projectId]);
+
+  // Poll for photos that are generating prompts
+  useEffect(() => {
+    const photosGenerating = photos.filter(
+      (p: Photo) => p.prompt_generation_status === "pending" || p.prompt_generation_status === "generating"
+    );
+    if (photosGenerating.length === 0) return;
+
+    const interval = setInterval(async () => {
+      try {
+        // Check each photo that is generating
+        for (const photo of photosGenerating) {
+          const response = await api.get<Photo>(`/photos/${photo.id}`);
+          const updatedPhoto = response.data;
+
+          // Update if status changed
+          if (updatedPhoto.prompt_generation_status !== photo.prompt_generation_status ||
+              updatedPhoto.animation_prompt !== photo.animation_prompt) {
+            // Update the photo in state
+            setPhotos((prev: Photo[]) =>
+              prev.map((p: Photo) =>
+                p.id === photo.id ? updatedPhoto : p
+              )
+            );
+            // Update selectedPhoto if it's this one
+            setSelectedPhoto((prev: Photo | null) =>
+              prev?.id === photo.id ? updatedPhoto : prev
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check prompt status:", error);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [photos.map((p: Photo) => `${p.id}:${p.prompt_generation_status}`).join(",")]);
 
   // Auto-save animation prompt when it changes (debounced)
   useEffect(() => {
@@ -463,6 +520,64 @@ export default function ProjectPage() {
     return videos.find((v) => v.is_selected) || videos[0];
   };
 
+  // Regenerate the animation prompt for a photo
+  const handleRegeneratePrompt = async (photoId: string, feedback?: string) => {
+    // Optimistically update the status to show generating
+    setPhotos((prev: Photo[]) =>
+      prev.map((p: Photo) =>
+        p.id === photoId ? { ...p, prompt_generation_status: "generating" as const } : p
+      )
+    );
+    if (selectedPhoto?.id === photoId) {
+      setSelectedPhoto((prev: Photo | null) =>
+        prev ? { ...prev, prompt_generation_status: "generating" as const } : prev
+      );
+    }
+    setShowPromptFeedback(false);
+    setPromptFeedback("");
+
+    try {
+      const response = await api.post<{ photo_id: string; animation_prompt: string }>(
+        `/photos/${photoId}/regenerate-prompt`,
+        { feedback: feedback || null }
+      );
+
+      const newPrompt = response.data.animation_prompt;
+
+      // Update photos state
+      setPhotos((prev: Photo[]) =>
+        prev.map((p: Photo) =>
+          p.id === photoId ? { ...p, animation_prompt: newPrompt, prompt_generation_status: "completed" as const } : p
+        )
+      );
+
+      // Update selectedPhoto if it's this one
+      if (selectedPhoto?.id === photoId) {
+        setSelectedPhoto((prev: Photo | null) =>
+          prev ? { ...prev, animation_prompt: newPrompt, prompt_generation_status: "completed" as const } : prev
+        );
+        setAnimationPrompt(newPrompt);
+        lastSavedPromptRef.current = newPrompt;
+      }
+
+      toast.success("Prompt regenerated");
+    } catch (error) {
+      console.error("Failed to regenerate prompt:", error);
+      toast.error("Failed to regenerate prompt");
+      // Revert to failed status
+      setPhotos((prev: Photo[]) =>
+        prev.map((p: Photo) =>
+          p.id === photoId ? { ...p, prompt_generation_status: "failed" as const } : p
+        )
+      );
+      if (selectedPhoto?.id === photoId) {
+        setSelectedPhoto((prev: Photo | null) =>
+          prev ? { ...prev, prompt_generation_status: "failed" as const } : prev
+        );
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -485,7 +600,6 @@ export default function ProjectPage() {
   }
 
   const isProcessing = project.status === "processing";
-  const styledCount = photos.filter((p) => p.status === "styled").length;
   const stylingCount = photos.filter((p) => p.status === "styling").length;
   const canGenerate = project.style && photos.length > 0 && !isProcessing && !isApplyingStyle;
 
@@ -643,7 +757,7 @@ export default function ProjectPage() {
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
                         <span className="text-yellow-700 text-sm">
-                          Generating styled images... ({styledCount}/{photos.length})
+                          Generating styled images... ({stylingCount} remaining)
                         </span>
                       </div>
                       <button
@@ -654,11 +768,6 @@ export default function ProjectPage() {
                         Reset
                       </button>
                     </div>
-                    {stylingCount > 0 && (
-                      <p className="text-yellow-600 text-xs mt-1">
-                        Currently processing {stylingCount} photo(s)
-                      </p>
-                    )}
                   </div>
                 )}
 
@@ -782,17 +891,92 @@ export default function ProjectPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Animation Prompt
-                      </label>
-                      <textarea
-                        value={animationPrompt}
-                        onChange={(e) => setAnimationPrompt(e.target.value)}
-                        placeholder="Describe how this photo should animate..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        rows={3}
-                      />
-                      <p className="text-xs text-gray-400 mt-1">Auto-saves as you type</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Animation Prompt
+                        </label>
+                        {selectedPhoto.prompt_generation_status === "generating" || selectedPhoto.prompt_generation_status === "pending" ? (
+                          <span className="text-xs text-purple-600 flex items-center gap-1">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-purple-600"></div>
+                            Generating...
+                          </span>
+                        ) : selectedPhoto.prompt_generation_status === "failed" ? (
+                          <button
+                            onClick={() => handleRegeneratePrompt(selectedPhoto.id, "")}
+                            className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Retry
+                          </button>
+                        ) : animationPrompt ? (
+                          <button
+                            onClick={() => setShowPromptFeedback(!showPromptFeedback)}
+                            className="text-xs text-primary-600 hover:text-primary-700"
+                          >
+                            Regenerate
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {selectedPhoto.prompt_generation_status === "generating" || selectedPhoto.prompt_generation_status === "pending" ? (
+                        <div className="w-full px-3 py-4 border border-gray-200 rounded-lg bg-gray-50 text-center">
+                          <div className="animate-pulse text-sm text-gray-500">
+                            AI is analyzing your image and generating a video prompt with subject actions and camera movements...
+                          </div>
+                        </div>
+                      ) : selectedPhoto.prompt_generation_status === "failed" ? (
+                        <div className="w-full px-3 py-4 border border-red-200 rounded-lg bg-red-50 text-center">
+                          <div className="text-sm text-red-600">
+                            Failed to generate prompt. Click "Retry" to try again.
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <textarea
+                            value={animationPrompt}
+                            onChange={(e) => setAnimationPrompt(e.target.value)}
+                            placeholder="Describe how this photo should animate..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            rows={3}
+                          />
+                          <p className="text-xs text-gray-400 mt-1">Auto-saves as you type</p>
+                        </>
+                      )}
+
+                      {/* Regenerate with feedback */}
+                      {showPromptFeedback && selectedPhoto.prompt_generation_status === "completed" && (
+                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            What would you like to change? (optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={promptFeedback}
+                            onChange={(e) => setPromptFeedback(e.target.value)}
+                            placeholder="e.g., more camera movement, slower action..."
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleRegeneratePrompt(selectedPhoto.id, promptFeedback)}
+                              className="flex-1 px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700"
+                            >
+                              Regenerate Prompt
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowPromptFeedback(false);
+                                setPromptFeedback("");
+                              }}
+                              className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-between">
                       <span
@@ -808,16 +992,34 @@ export default function ProjectPage() {
                       >
                         {selectedPhoto.status}
                       </span>
-                      {selectedPhoto.styled_url && project.style && (
+                      {project.style && (
                         <button
                           onClick={() => handleRegeneratePhoto(selectedPhoto.id)}
                           disabled={selectedPhoto.status === "styling"}
                           className="text-sm text-primary-600 hover:text-primary-700 disabled:opacity-50"
                         >
-                          Regenerate Style
+                          {selectedPhoto.status === "styling" ? (
+                            <span className="flex items-center gap-1">
+                              <div className="animate-spin rounded-full h-3 w-3 border-b border-primary-600"></div>
+                              Styling...
+                            </span>
+                          ) : selectedPhoto.styled_url ? (
+                            "Regenerate Style"
+                          ) : (
+                            "Generate Style"
+                          )}
                         </button>
                       )}
                     </div>
+
+                    {/* Generate Style Prompt - show when no style selected */}
+                    {!project.style && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-700">
+                          Select a style above to generate styled images
+                        </p>
+                      </div>
+                    )}
 
                     {/* Video Generation Section */}
                     {selectedPhoto.styled_url && (
@@ -998,7 +1200,7 @@ export default function ProjectPage() {
                           >
                             {photo.status}
                           </span>
-                          {photo.styled_url && project.style && (
+                          {project.style && (
                             <button
                               onClick={() => handleRegeneratePhoto(photo.id)}
                               disabled={photo.status === "styling" || isRegenerating}
@@ -1009,8 +1211,10 @@ export default function ProjectPage() {
                                   <div className="animate-spin rounded-full h-3 w-3 border-b border-primary-600"></div>
                                   <GeneratingTimer label="Generating" />
                                 </span>
-                              ) : (
+                              ) : photo.styled_url ? (
                                 "Regenerate"
+                              ) : (
+                                "Generate Style"
                               )}
                             </button>
                           )}

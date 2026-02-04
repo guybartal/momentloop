@@ -27,6 +27,7 @@ export interface Photo {
   styled_path: string | null;
   styled_url: string | null;
   animation_prompt: string | null;
+  prompt_generation_status: "pending" | "generating" | "completed" | "failed";
   position: number;
   status: "uploaded" | "styling" | "styled" | "ready";
   created_at: string;
