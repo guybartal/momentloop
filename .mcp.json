@@ -3,6 +3,11 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp", "--api-key", "ctx7sk-97d0dc50-de62-4636-9901-8418604e939f"],
+      "description": "Live documentation lookup"
     }
   }
 }
