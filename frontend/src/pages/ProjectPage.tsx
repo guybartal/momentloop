@@ -53,6 +53,7 @@ export default function ProjectPage() {
 
   // Export state
   const [latestExport, setLatestExport] = useState<Export | null>(null);
+  const [mainExport, setMainExport] = useState<Export | null>(null);
   const [currentExport, setCurrentExport] = useState<Export | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -244,15 +245,21 @@ export default function ProjectPage() {
 
   const loadProject = async () => {
     try {
-      const [projectRes, photosRes, videosRes, latestExportRes] = await Promise.all([
+      const [projectRes, photosRes, videosRes, exportsRes] = await Promise.all([
         api.get<Project>(`/projects/${projectId}`),
         api.get<{ items: Photo[]; total: number }>(`/projects/${projectId}/photos`),
         api.get<Video[]>(`/projects/${projectId}/videos`),
-        api.get<Export | null>(`/projects/${projectId}/latest-export`).catch(() => ({ data: null })),
+        api.get<Export[]>(`/projects/${projectId}/exports`).catch(() => ({ data: [] })),
       ]);
       setProject(projectRes.data);
       setPhotos(photosRes.data.items);
-      setLatestExport(latestExportRes.data);
+
+      // Find main export and latest ready export
+      const allExports = exportsRes.data;
+      const mainExp = allExports.find(e => e.is_main && e.status === "ready");
+      const latestReadyExp = allExports.find(e => e.status === "ready");
+      setMainExport(mainExp || null);
+      setLatestExport(latestReadyExp || null);
 
       // Map videos to photos (group by photo_id)
       const videoMap: Record<string, Video[]> = {};
@@ -481,6 +488,10 @@ export default function ProjectPage() {
 
         if (response.data.status === "ready") {
           setLatestExport(response.data);
+          // If no main export is set yet, this becomes the main
+          if (!mainExport) {
+            setMainExport(response.data);
+          }
           setIsExporting(false);
           toast.success("Export completed!");
           clearInterval(interval);
@@ -495,7 +506,7 @@ export default function ProjectPage() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [currentExport?.id, currentExport?.status]);
+  }, [currentExport?.id, currentExport?.status, mainExport]);
 
   const handleGenerateVideo = async (photoId: string) => {
     const photo = photos.find((p) => p.id === photoId);
@@ -758,6 +769,7 @@ export default function ProjectPage() {
         {/* Export Preview Section */}
         <ExportPreviewSection
           projectId={projectId!}
+          mainExport={mainExport}
           latestExport={latestExport}
           currentExport={currentExport}
           isExporting={isExporting}

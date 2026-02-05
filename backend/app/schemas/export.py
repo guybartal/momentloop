@@ -20,6 +20,7 @@ class ExportResponse(BaseModel):
     progress_detail: str | None
     progress_percent: int = 0
     error_message: str | None
+    is_main: bool = False
     created_at: datetime
 
     class Config:

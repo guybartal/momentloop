@@ -35,6 +35,7 @@ def export_to_response(export: Export) -> ExportResponse:
         progress_detail=export.progress_detail,
         progress_percent=export.progress_percent,
         error_message=export.error_message,
+        is_main=export.is_main,
         created_at=export.created_at,
     )
 
@@ -105,19 +106,30 @@ async def process_export(
                 await db.commit()
                 return
 
-            await update_export_progress(
-                db, export, "collecting_videos", f"Found {len(scene_videos)} videos", 10
-            )
-
-            # Get full paths for scene videos
-            scene_paths = [
-                storage_service.get_full_path(video.video_path)
+            # Extract needed data before any commits expire the objects
+            scene_video_data = [
+                {
+                    "id": video.id,
+                    "video_path": video.video_path,
+                    "photo_id": video.photo_id,
+                    "position": video.position,
+                }
                 for video in scene_videos
             ]
 
+            # Get full paths for scene videos
+            scene_paths = [
+                storage_service.get_full_path(data["video_path"])
+                for data in scene_video_data
+            ]
+
+            await update_export_progress(
+                db, export, "collecting_videos", f"Found {len(scene_video_data)} videos", 10
+            )
+
             # PHASE 2 & 3: Generate transitions if enabled and we have multiple videos
             transition_paths = []
-            total_transitions = len(scene_videos) - 1 if include_transitions and len(scene_videos) > 1 else 0
+            total_transitions = len(scene_video_data) - 1 if include_transitions and len(scene_video_data) > 1 else 0
 
             if total_transitions > 0:
                 # Create temp directory for extracted frames
@@ -125,8 +137,8 @@ async def process_export(
                 logger.info("Created frames directory: %s", frames_dir)
 
                 for i in range(total_transitions):
-                    video_a = scene_videos[i]
-                    video_b = scene_videos[i + 1]
+                    video_a_data = scene_video_data[i]
+                    video_b_data = scene_video_data[i + 1]
                     video_a_path = scene_paths[i]
                     video_b_path = scene_paths[i + 1]
 
@@ -140,18 +152,18 @@ async def process_export(
                     logger.info(
                         "Generating transition %d: video %s -> video %s",
                         i + 1,
-                        video_a.id,
-                        video_b.id,
+                        video_a_data["id"],
+                        video_b_data["id"],
                     )
 
                     # Extract last frame from video A
-                    frame_a_end = frames_dir / f"scene_{video_a.id}_last.png"
+                    frame_a_end = frames_dir / f"scene_{video_a_data['id']}_last.png"
                     await ffmpeg_service.extract_frame(
                         video_a_path, frame_a_end, position="last"
                     )
 
                     # Extract first frame from video B
-                    frame_b_start = frames_dir / f"scene_{video_b.id}_first.png"
+                    frame_b_start = frames_dir / f"scene_{video_b_data['id']}_first.png"
                     await ffmpeg_service.extract_frame(
                         video_b_path, frame_b_start, position="first"
                     )
@@ -188,11 +200,11 @@ async def process_export(
                             project_id=project_id,
                             video_type="transition",
                             video_path=transition_relative_path,
-                            source_photo_id=video_a.photo_id,
-                            target_photo_id=video_b.photo_id,
+                            source_photo_id=video_a_data["photo_id"],
+                            target_photo_id=video_b_data["photo_id"],
                             prompt=transition_prompt,
                             duration_seconds=5.0,
-                            position=video_a.position,  # Position after source scene
+                            position=video_a_data["position"],  # Position after source scene
                             status="ready",
                         )
                         db.add(transition_video)
@@ -626,5 +638,47 @@ async def re_export(
         settings.database_url,
         include_transitions,
     )
+
+    return export_to_response(export)
+
+
+@router.post("/exports/{export_id}/set-main", response_model=ExportResponse)
+async def set_main_export(
+    export_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set an export as the main export for its project."""
+    # Get the export and verify ownership
+    result = await db.execute(
+        select(Export)
+        .join(Project)
+        .where(Export.id == export_id, Project.user_id == current_user.id)
+    )
+    export = result.scalar_one_or_none()
+
+    if not export:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Export not found",
+        )
+
+    if export.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only ready exports can be set as main",
+        )
+
+    # Clear is_main from all other exports for this project
+    result = await db.execute(
+        select(Export).where(Export.project_id == export.project_id, Export.is_main == True)
+    )
+    for other_export in result.scalars().all():
+        other_export.is_main = False
+
+    # Set this export as main
+    export.is_main = True
+    await db.commit()
+    await db.refresh(export)
 
     return export_to_response(export)

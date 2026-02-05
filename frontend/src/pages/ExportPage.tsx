@@ -49,6 +49,14 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
+function StarIcon({ className, filled }: { className?: string; filled?: boolean }) {
+  return (
+    <svg className={className} fill={filled ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  );
+}
+
 export default function ExportPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [project, setProject] = useState<Project | null>(null);
@@ -58,6 +66,7 @@ export default function ExportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [regeneratingVideos, setRegeneratingVideos] = useState<Record<string, boolean>>({});
+  const [selectedExportForPlay, setSelectedExportForPlay] = useState<Export | null>(null);
 
   useEffect(() => {
     if (projectId) {
@@ -183,9 +192,29 @@ export default function ExportPage() {
     }
   };
 
+  const setMainExport = async (exportId: string) => {
+    try {
+      await api.post<Export>(`/exports/${exportId}/set-main`);
+      // Update export history with new main status
+      setExportHistory((prev) =>
+        prev.map((exp) => ({
+          ...exp,
+          is_main: exp.id === exportId,
+        }))
+      );
+      toast.success("Set as main export");
+    } catch (error) {
+      console.error("Failed to set main export:", error);
+      toast.error("Failed to set main export");
+    }
+  };
+
   const readyVideos = videos.filter((v) => v.status === "ready");
   const isProcessing = currentExport?.status === "pending" || currentExport?.status === "processing";
+  const mainExport = exportHistory.find((e) => e.is_main && e.status === "ready");
   const latestReadyExport = exportHistory.find((e) => e.status === "ready");
+  // Show selected, or main, or latest ready export
+  const displayExport = selectedExportForPlay || mainExport || latestReadyExport;
 
   if (isLoading) {
     return (
@@ -244,12 +273,13 @@ export default function ExportPage() {
                   percent={currentExport.progress_percent}
                 />
               </div>
-            ) : latestReadyExport?.file_url ? (
+            ) : displayExport?.file_url ? (
               <video
+                key={displayExport.id}
                 controls
                 className="w-full h-full"
-                src={`${API_URL}${latestReadyExport.file_url}`}
-                poster={latestReadyExport.thumbnail_url ? `${API_URL}${latestReadyExport.thumbnail_url}` : undefined}
+                src={`${API_URL}${displayExport.file_url}`}
+                poster={displayExport.thumbnail_url ? `${API_URL}${displayExport.thumbnail_url}` : undefined}
               />
             ) : (
               <div className="text-center text-gray-400">
@@ -258,6 +288,22 @@ export default function ExportPage() {
               </div>
             )}
           </div>
+
+          {/* Currently viewing indicator */}
+          {displayExport && !isProcessing && (
+            <div className="text-center mb-4 text-sm text-gray-500">
+              Viewing: {displayExport.is_main ? "Main export" : selectedExportForPlay ? "Selected export" : "Latest export"}
+              from {new Date(displayExport.created_at).toLocaleDateString()}
+              {selectedExportForPlay && (
+                <button
+                  onClick={() => setSelectedExportForPlay(null)}
+                  className="ml-2 text-primary-600 hover:underline"
+                >
+                  (show main)
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Video Stats */}
           <div className="grid grid-cols-3 gap-4 mb-8">
@@ -297,11 +343,11 @@ export default function ExportPage() {
               <div className="text-gray-500">
                 <p className="font-medium">Export in progress...</p>
               </div>
-            ) : latestReadyExport ? (
+            ) : displayExport ? (
               <div className="flex items-center justify-center gap-4">
                 <a
-                  href={`${API_URL}${latestReadyExport.file_url}`}
-                  download={`export-${latestReadyExport.id}.mp4`}
+                  href={`${API_URL}${displayExport.file_url}`}
+                  download={`export-${displayExport.id}.mp4`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -315,7 +361,7 @@ export default function ExportPage() {
                   className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >
                   <RefreshIcon className={`w-4 h-4 ${isExporting ? "animate-spin" : ""}`} />
-                  Re-export
+                  New Export
                 </button>
               </div>
             ) : (
@@ -352,9 +398,9 @@ export default function ExportPage() {
                       <span className="text-gray-400 text-sm w-6">
                         {index + 1}.
                       </span>
-                      {video.file_url && video.status === "ready" && (
+                      {video.video_url && video.status === "ready" && (
                         <video
-                          src={`${API_URL}${video.file_url}`}
+                          src={`${API_URL}${video.video_url}`}
                           className="w-16 h-10 object-cover rounded"
                         />
                       )}
@@ -398,17 +444,27 @@ export default function ExportPage() {
         {exportHistory.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Export History
+              All Exports
             </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Click on any export to preview it. Set one as main to display it in the project list and project page.
+            </p>
             <div className="space-y-3">
               {exportHistory.map((exp) => (
                 <div
                   key={exp.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  className={`flex items-center justify-between p-4 rounded-lg cursor-pointer transition-colors ${
+                    selectedExportForPlay?.id === exp.id
+                      ? "bg-primary-50 border-2 border-primary-300"
+                      : exp.is_main
+                      ? "bg-yellow-50 border border-yellow-200"
+                      : "bg-gray-50 hover:bg-gray-100"
+                  }`}
+                  onClick={() => exp.status === "ready" && setSelectedExportForPlay(exp)}
                 >
                   <div className="flex items-center gap-4">
                     {/* Thumbnail */}
-                    <div className="w-20 h-12 bg-gray-200 rounded overflow-hidden flex-shrink-0">
+                    <div className="w-24 h-14 bg-gray-200 rounded overflow-hidden flex-shrink-0 relative">
                       {exp.thumbnail_url ? (
                         <img
                           src={`${API_URL}${exp.thumbnail_url}`}
@@ -420,10 +476,23 @@ export default function ExportPage() {
                           <FilmIcon className="w-6 h-6 text-gray-400" />
                         </div>
                       )}
+                      {exp.status === "ready" && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
+                          <PlayIcon className="w-8 h-8 text-white" />
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {new Date(exp.created_at).toLocaleString()}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {new Date(exp.created_at).toLocaleString()}
+                        </span>
+                        {exp.is_main && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                            <StarIcon className="w-3 h-3" filled />
+                            Main
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span
@@ -443,22 +512,33 @@ export default function ExportPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {exp.status === "ready" && exp.file_url && (
-                      <a
-                        href={`${API_URL}${exp.file_url}`}
-                        download={`export-${exp.id}.mp4`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded transition-colors"
-                        title="Download"
-                      >
-                        <DownloadIcon className="w-4 h-4" />
-                      </a>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    {exp.status === "ready" && (
+                      <>
+                        {!exp.is_main && (
+                          <button
+                            onClick={() => setMainExport(exp.id)}
+                            className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded transition-colors"
+                            title="Set as main export"
+                          >
+                            <StarIcon className="w-4 h-4" />
+                          </button>
+                        )}
+                        <a
+                          href={`${API_URL}${exp.file_url}`}
+                          download={`export-${exp.id}.mp4`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          title="Download"
+                        >
+                          <DownloadIcon className="w-4 h-4" />
+                        </a>
+                      </>
                     )}
                     <button
                       onClick={() => deleteExport(exp.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded transition-colors"
+                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                       title="Delete export"
                     >
                       <TrashIcon className="w-4 h-4" />

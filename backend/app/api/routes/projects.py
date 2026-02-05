@@ -27,30 +27,31 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),
 ):
     """List all projects for the current user."""
-    # Subquery to get latest ready export thumbnail for each project
+    # Subquery to get main export thumbnail (is_main=True) or latest ready export for each project
+    # Priority: is_main first, then created_at desc
     # PostgreSQL DISTINCT ON requires ORDER BY to start with the DISTINCT ON column
-    latest_export_subquery = (
+    main_export_subquery = (
         select(
             Export.project_id,
             Export.thumbnail_path,
         )
         .where(Export.status == "ready")
         .distinct(Export.project_id)
-        .order_by(Export.project_id, Export.created_at.desc())
+        .order_by(Export.project_id, Export.is_main.desc(), Export.created_at.desc())
         .subquery()
     )
 
-    # Get projects with photo count and latest export thumbnail
+    # Get projects with photo count and main/latest export thumbnail
     result = await db.execute(
         select(
             Project,
             func.count(Photo.id).label("photo_count"),
-            latest_export_subquery.c.thumbnail_path,
+            main_export_subquery.c.thumbnail_path,
         )
         .outerjoin(Photo, Project.id == Photo.project_id)
-        .outerjoin(latest_export_subquery, Project.id == latest_export_subquery.c.project_id)
+        .outerjoin(main_export_subquery, Project.id == main_export_subquery.c.project_id)
         .where(Project.user_id == current_user.id)
-        .group_by(Project.id, latest_export_subquery.c.thumbnail_path)
+        .group_by(Project.id, main_export_subquery.c.thumbnail_path)
         .order_by(Project.created_at.desc())
     )
 

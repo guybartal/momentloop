@@ -71,6 +71,7 @@ export interface Export {
   progress_detail: string | null;
   progress_percent: number;
   error_message: string | null;
+  is_main: boolean;
   created_at: string;
 }
 

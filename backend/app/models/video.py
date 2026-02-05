@@ -76,6 +76,7 @@ class Export(Base):
     progress_detail: Mapped[str | None] = mapped_column(Text)  # e.g., "Transition 2 of 5"
     progress_percent: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
+    is_main: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
