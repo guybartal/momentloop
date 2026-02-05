@@ -676,7 +676,7 @@ async def set_main_export(
 
     # Clear is_main from all other exports for this project
     result = await db.execute(
-        select(Export).where(Export.project_id == export.project_id, Export.is_main == True)
+        select(Export).where(Export.project_id == export.project_id, Export.is_main.is_(True))
     )
     for other_export in result.scalars().all():
         other_export.is_main = False
