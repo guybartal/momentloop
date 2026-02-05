@@ -666,6 +666,10 @@ export default function ProjectPage() {
   const isProcessing = project.status === "processing";
   const stylingCount = photos.filter((p) => p.status === "styling").length;
   const canGenerate = project.style && photos.length > 0 && !isProcessing && !isApplyingStyle;
+  const readyVideoCount = Object.values(photoVideos).filter(
+    (videos: Video[]) => videos.some((v) => v.status === "ready")
+  ).length;
+  const canExport = readyVideoCount >= 2;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -718,12 +722,21 @@ export default function ProjectPage() {
                 Compare
               </button>
             </div>
-            <Link
-              to={`/projects/${projectId}/export`}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Export Video
-            </Link>
+            {canExport ? (
+              <Link
+                to={`/projects/${projectId}/export`}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                Export Video
+              </Link>
+            ) : (
+              <span
+                className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                title="Generate at least 2 videos first"
+              >
+                Export Video
+              </span>
+            )}
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
@@ -774,6 +787,7 @@ export default function ProjectPage() {
           currentExport={currentExport}
           isExporting={isExporting}
           onExport={handleStartExport}
+          canExport={canExport}
         />
 
         {viewMode === "grid" ? (

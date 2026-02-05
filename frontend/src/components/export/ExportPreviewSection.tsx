@@ -54,6 +54,7 @@ interface ExportPreviewSectionProps {
   currentExport: Export | null;
   isExporting: boolean;
   onExport: () => void;
+  canExport?: boolean;
 }
 
 export default function ExportPreviewSection({
@@ -63,6 +64,7 @@ export default function ExportPreviewSection({
   currentExport,
   isExporting,
   onExport,
+  canExport = true,
 }: ExportPreviewSectionProps) {
   // Priority: currentExport (if processing) > mainExport > latestExport
   const exportToShow = currentExport || mainExport || latestExport;
@@ -157,11 +159,19 @@ export default function ExportPreviewSection({
         /* No export yet */
         <div className="bg-gray-50 rounded-lg p-8 text-center">
           <PlayIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">No export yet. Create your first video export!</p>
+          <p className="text-gray-600 mb-4">
+            {canExport
+              ? "No export yet. Create your first video export!"
+              : "Generate at least 2 videos to create an export."}
+          </p>
           <button
             onClick={onExport}
-            disabled={isExporting}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50"
+            disabled={isExporting || !canExport}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              canExport
+                ? "bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
           >
             <FilmIcon className="w-4 h-4" />
             Create Export
