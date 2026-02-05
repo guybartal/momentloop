@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Full Stack (Docker)
 ```bash
-docker-compose up -d              # Start all services
-docker-compose down               # Stop all services
-docker-compose logs -f backend    # Tail backend logs
+docker compose up -d              # Start all services
+docker compose down               # Stop all services
+docker compose logs -f backend    # Tail backend logs
 ```
 
 ### Backend (Python/FastAPI)
