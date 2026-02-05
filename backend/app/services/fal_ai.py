@@ -25,6 +25,7 @@ class FalAIService:
         "turbo": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
         "pro": "fal-ai/kling-video/v2.1/pro/image-to-video",
         "master": "fal-ai/kling-video/v2.1/master/image-to-video",
+        "v2.6": "fal-ai/kling-video/v2.6/pro/image-to-video",  # Supports end_image_url for transitions
     }
 
     def __init__(self):
@@ -134,30 +135,96 @@ class FalAIService:
         start_image_path: Path,
         end_image_path: Path,
         prompt: str | None = None,
-        duration: float = 3.0,
+        duration: float = 5.0,
     ) -> bytes:
         """
-        Generate a transition video between two images.
+        Generate a transition video between two images using Kling 2.6.
+
+        Uses start_image_url + end_image_url for smooth AI-generated morphs.
 
         Args:
             start_image_path: Path to the starting frame
             end_image_path: Path to the ending frame
             prompt: Optional transition prompt
-            duration: Transition duration in seconds
+            duration: Transition duration in seconds (5 or 10 for Kling 2.6)
 
         Returns:
             Video content as bytes
         """
-        # For transitions, we use the start image with a prompt describing the transition
         if not prompt:
             prompt = "Smooth cinematic transition, camera movement, seamless morph to next scene"
 
-        # Use the start image to generate a transition
-        return await self.generate_video(
+        loop = asyncio.get_running_loop()
+
+        # Read both images
+        def read_images():
+            with open(start_image_path, "rb") as f:
+                start_data = f.read()
+            with open(end_image_path, "rb") as f:
+                end_data = f.read()
+            return start_data, end_data
+
+        start_data, end_data = await loop.run_in_executor(_fal_executor, read_images)
+
+        # Determine mime types
+        def get_mime_type(path: Path) -> str:
+            ext = path.suffix.lower()
+            return {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }.get(ext, "image/jpeg")
+
+        start_mime = get_mime_type(start_image_path)
+        end_mime = get_mime_type(end_image_path)
+
+        start_base64 = base64.b64encode(start_data).decode()
+        end_base64 = base64.b64encode(end_data).decode()
+
+        start_url = f"data:{start_mime};base64,{start_base64}"
+        end_url = f"data:{end_mime};base64,{end_base64}"
+
+        # Use Kling 2.6 which supports end_image_url
+        model_id = self.MODELS["v2.6"]
+        logger.info("Generating transition with Kling 2.6: %s", model_id)
+        logger.info("Transition prompt: %s", prompt)
+        logger.info(
+            "Start image: %s (%d bytes), End image: %s (%d bytes)",
             start_image_path,
-            prompt,
-            duration=duration,
+            len(start_data),
+            end_image_path,
+            len(end_data),
         )
+
+        # Submit to fal.ai with both start and end images
+        def run_job():
+            handle = fal_client.submit(
+                model_id,
+                arguments={
+                    "prompt": prompt,
+                    "start_image_url": start_url,
+                    "end_image_url": end_url,
+                    "duration": "5" if duration <= 5 else "10",
+                    "aspect_ratio": "16:9",
+                    "negative_prompt": "blur, distort, and low quality",
+                },
+            )
+            return handle.get()
+
+        result = await loop.run_in_executor(_fal_executor, run_job)
+
+        logger.info("Transition video response received")
+
+        # Download the video
+        video_url = result.get("video", {}).get("url")
+        if not video_url:
+            raise RuntimeError(f"No video URL in response: {result}")
+
+        client = await self._get_http_client()
+        response = await self._download_with_retry(client, video_url)
+        return response.content
 
     async def check_status(self, request_id: str, model: str = "pro") -> dict:
         """Check the status of a video generation request."""
