@@ -70,7 +70,12 @@ class Export(Base):
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
     file_path: Mapped[str | None] = mapped_column(Text)
+    thumbnail_path: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, processing, ready, failed
+    progress_step: Mapped[str | None] = mapped_column(String(50))  # collecting_videos, extracting_frames, generating_transitions, concatenating, generating_thumbnail
+    progress_detail: Mapped[str | None] = mapped_column(Text)  # e.g., "Transition 2 of 5"
+    progress_percent: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

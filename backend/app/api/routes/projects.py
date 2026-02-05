@@ -9,12 +9,14 @@ from app.core.database import get_db
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
+from app.models.video import Export
 from app.schemas.project import (
     ProjectCreate,
     ProjectListResponse,
     ProjectResponse,
     ProjectUpdate,
 )
+from app.services.storage import storage_service
 
 router = APIRouter()
 
@@ -25,15 +27,30 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),
 ):
     """List all projects for the current user."""
-    # Get projects with photo count
+    # Subquery to get latest ready export thumbnail for each project
+    # PostgreSQL DISTINCT ON requires ORDER BY to start with the DISTINCT ON column
+    latest_export_subquery = (
+        select(
+            Export.project_id,
+            Export.thumbnail_path,
+        )
+        .where(Export.status == "ready")
+        .distinct(Export.project_id)
+        .order_by(Export.project_id, Export.created_at.desc())
+        .subquery()
+    )
+
+    # Get projects with photo count and latest export thumbnail
     result = await db.execute(
         select(
             Project,
             func.count(Photo.id).label("photo_count"),
+            latest_export_subquery.c.thumbnail_path,
         )
         .outerjoin(Photo, Project.id == Photo.project_id)
+        .outerjoin(latest_export_subquery, Project.id == latest_export_subquery.c.project_id)
         .where(Project.user_id == current_user.id)
-        .group_by(Project.id)
+        .group_by(Project.id, latest_export_subquery.c.thumbnail_path)
         .order_by(Project.created_at.desc())
     )
 
@@ -41,6 +58,7 @@ async def list_projects(
     for row in result.all():
         project = row[0]
         photo_count = row[1]
+        thumbnail_path = row[2]
         projects.append(
             ProjectListResponse(
                 id=project.id,
@@ -50,7 +68,7 @@ async def list_projects(
                 created_at=project.created_at,
                 updated_at=project.updated_at,
                 photo_count=photo_count,
-                thumbnail_url=None,  # TODO: Add first photo thumbnail
+                thumbnail_url=storage_service.get_url(thumbnail_path) if thumbnail_path else None,
             )
         )
 

@@ -5,6 +5,17 @@ import { useAuthStore } from "../store/authStore";
 import type { Project } from "../types";
 import api from "../services/api";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+// Inline SVG icon
+function FilmIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -108,26 +119,43 @@ export default function DashboardPage() {
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
-                className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6"
+                className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
               >
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {project.name}
-                </h3>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-1 text-xs rounded-full ${
-                      project.status === "complete"
-                        ? "bg-green-100 text-green-700"
-                        : project.status === "processing"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {project.status}
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    {new Date(project.created_at).toLocaleDateString()}
-                  </span>
+                {/* Thumbnail */}
+                <div className="aspect-video bg-gray-100 relative">
+                  {project.thumbnail_url ? (
+                    <img
+                      src={`${API_URL}${project.thumbnail_url}`}
+                      alt={project.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <FilmIcon className="w-12 h-12 text-gray-300" />
+                    </div>
+                  )}
+                </div>
+                {/* Content */}
+                <div className="p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {project.name}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        project.status === "complete"
+                          ? "bg-green-100 text-green-700"
+                          : project.status === "processing"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {project.status}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {new Date(project.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
               </Link>
             ))}

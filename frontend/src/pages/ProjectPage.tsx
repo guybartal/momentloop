@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import type { Project, Photo, StyleType, StyledVariant, Video } from "../types";
+import type { Project, Photo, StyleType, StyledVariant, Video, Export } from "../types";
 import api from "../services/api";
 import ImageUploader from "../components/upload/ImageUploader";
 import PhotoGallery from "../components/gallery/PhotoGallery";
 import Lightbox from "../components/common/Lightbox";
 import GeneratingTimer from "../components/common/GeneratingTimer";
+import ExportPreviewSection from "../components/export/ExportPreviewSection";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -49,6 +50,11 @@ export default function ProjectPage() {
   const [photoVideos, setPhotoVideos] = useState<Record<string, Video[]>>({});
   const [generatingVideos, setGeneratingVideos] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
+
+  // Export state
+  const [latestExport, setLatestExport] = useState<Export | null>(null);
+  const [currentExport, setCurrentExport] = useState<Export | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Track prompt regeneration UI state
   const [showPromptFeedback, setShowPromptFeedback] = useState(false);
@@ -238,13 +244,15 @@ export default function ProjectPage() {
 
   const loadProject = async () => {
     try {
-      const [projectRes, photosRes, videosRes] = await Promise.all([
+      const [projectRes, photosRes, videosRes, latestExportRes] = await Promise.all([
         api.get<Project>(`/projects/${projectId}`),
         api.get<{ items: Photo[]; total: number }>(`/projects/${projectId}/photos`),
         api.get<Video[]>(`/projects/${projectId}/videos`),
+        api.get<Export | null>(`/projects/${projectId}/latest-export`).catch(() => ({ data: null })),
       ]);
       setProject(projectRes.data);
       setPhotos(photosRes.data.items);
+      setLatestExport(latestExportRes.data);
 
       // Map videos to photos (group by photo_id)
       const videoMap: Record<string, Video[]> = {};
@@ -443,6 +451,51 @@ export default function ProjectPage() {
       console.error("Failed to delete project:", error);
     }
   };
+
+  const handleStartExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await api.post<Export>(`/projects/${projectId}/export`, {
+        include_transitions: true,
+      });
+      setCurrentExport(response.data);
+      toast.success("Export started");
+    } catch (error) {
+      toast.error("Failed to start export");
+      console.error("Failed to start export:", error);
+      setIsExporting(false);
+    }
+  };
+
+  // Poll for export progress when exporting
+  useEffect(() => {
+    if (!currentExport || (currentExport.status !== "pending" && currentExport.status !== "processing")) {
+      setIsExporting(false);
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await api.get<Export>(`/exports/${currentExport.id}`);
+        setCurrentExport(response.data);
+
+        if (response.data.status === "ready") {
+          setLatestExport(response.data);
+          setIsExporting(false);
+          toast.success("Export completed!");
+          clearInterval(interval);
+        } else if (response.data.status === "failed") {
+          setIsExporting(false);
+          toast.error("Export failed");
+          clearInterval(interval);
+        }
+      } catch (error) {
+        console.error("Failed to poll export status:", error);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [currentExport?.id, currentExport?.status]);
 
   const handleGenerateVideo = async (photoId: string) => {
     const photo = photos.find((p) => p.id === photoId);
@@ -702,6 +755,15 @@ export default function ProjectPage() {
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Export Preview Section */}
+        <ExportPreviewSection
+          projectId={projectId!}
+          latestExport={latestExport}
+          currentExport={currentExport}
+          isExporting={isExporting}
+          onExport={handleStartExport}
+        />
+
         {viewMode === "grid" ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}

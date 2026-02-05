@@ -13,7 +13,13 @@ class ExportResponse(BaseModel):
     project_id: uuid.UUID
     file_path: str | None
     file_url: str | None
+    thumbnail_path: str | None
+    thumbnail_url: str | None
     status: str
+    progress_step: str | None
+    progress_detail: str | None
+    progress_percent: int = 0
+    error_message: str | None
     created_at: datetime
 
     class Config:
@@ -24,4 +30,8 @@ class ExportStatusResponse(BaseModel):
     export_id: str
     status: str
     file_url: str | None
+    thumbnail_url: str | None
     progress: int = 0  # 0-100
+    progress_step: str | None
+    progress_detail: str | None
+    error_message: str | None

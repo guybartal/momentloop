@@ -18,6 +18,7 @@ class StorageService:
         self.styled_path = settings.styled_path
         self.videos_path = settings.videos_path
         self.exports_path = settings.exports_path
+        self.thumbnails_path = settings.storage_path / "thumbnails"
 
     async def save_upload(self, file_content: bytes, filename: str, project_id: uuid.UUID) -> str:
         """Save an uploaded file and return the relative path."""
@@ -87,6 +88,21 @@ class StorageService:
 
         return str(file_path.relative_to(self.base_path))
 
+    async def save_thumbnail(
+        self, file_content: bytes, project_id: uuid.UUID, export_id: uuid.UUID
+    ) -> str:
+        """Save an export thumbnail and return the relative path."""
+        project_dir = self.thumbnails_path / str(project_id)
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        unique_filename = f"thumb_{export_id}.jpg"
+        file_path = project_dir / unique_filename
+
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(file_content)
+
+        return str(file_path.relative_to(self.base_path))
+
     def get_full_path(self, relative_path: str) -> Path:
         """Get the full filesystem path from a relative path."""
         full_path = (self.base_path / relative_path).resolve()
@@ -110,7 +126,7 @@ class StorageService:
 
     async def delete_project_files(self, project_id: uuid.UUID) -> None:
         """Delete all files for a project."""
-        for path in [self.uploads_path, self.styled_path, self.videos_path, self.exports_path]:
+        for path in [self.uploads_path, self.styled_path, self.videos_path, self.exports_path, self.thumbnails_path]:
             project_dir = path / str(project_id)
             if project_dir.exists():
                 shutil.rmtree(project_dir)

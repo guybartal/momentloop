@@ -11,6 +11,7 @@ export interface Project {
   style: StyleType | null;
   style_prompt: string | null;
   status: "draft" | "processing" | "complete";
+  thumbnail_url: string | null;
   created_at: string;
   updated_at: string;
   photos?: Photo[];
@@ -62,6 +63,24 @@ export interface Export {
   id: string;
   project_id: string;
   file_path: string | null;
+  file_url: string | null;
+  thumbnail_path: string | null;
+  thumbnail_url: string | null;
   status: "pending" | "processing" | "ready" | "failed";
+  progress_step: string | null;
+  progress_detail: string | null;
+  progress_percent: number;
+  error_message: string | null;
   created_at: string;
+}
+
+export interface ExportStatus {
+  export_id: string;
+  status: "pending" | "processing" | "ready" | "failed";
+  file_url: string | null;
+  thumbnail_url: string | null;
+  progress: number;
+  progress_step: string | null;
+  progress_detail: string | null;
+  error_message: string | null;
 }
