@@ -49,11 +49,9 @@ MomentLoop is a web application that transforms user photos into styled, animate
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+uv sync --extra dev
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
 #### Frontend
