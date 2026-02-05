@@ -52,7 +52,9 @@ class ImagenService:
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
 
-    async def apply_style(self, image_path: Path, style: str, custom_prompt: str | None = None) -> bytes:
+    async def apply_style(
+        self, image_path: Path, style: str, custom_prompt: str | None = None
+    ) -> bytes:
         """
         Apply a style to an image using Google's Gemini with image generation.
         Returns the styled image as bytes.
@@ -76,11 +78,11 @@ class ImagenService:
 
         def prepare_image():
             image = Image.open(image_path)
-            if image.mode in ('RGBA', 'P'):
-                image = image.convert('RGB')
+            if image.mode in ("RGBA", "P"):
+                image = image.convert("RGB")
             img_buffer = io.BytesIO()
-            image.save(img_buffer, format='JPEG', quality=95)
-            return image, base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+            image.save(img_buffer, format="JPEG", quality=95)
+            return image, base64.b64encode(img_buffer.getvalue()).decode("utf-8")
 
         image, img_base64 = await loop.run_in_executor(_image_executor, prepare_image)
 
@@ -105,12 +107,7 @@ class ImagenService:
 
         # Last resort: Apply PIL filters as placeholder
         logger.warning("Using PIL fallback filters - API calls failed")
-        return await loop.run_in_executor(
-            _image_executor,
-            self._apply_pil_fallback,
-            image,
-            style
-        )
+        return await loop.run_in_executor(_image_executor, self._apply_pil_fallback, image, style)
 
     async def _try_sdk_generation(
         self, image: Image.Image, prompt: str, loop: asyncio.AbstractEventLoop
@@ -142,20 +139,32 @@ class ImagenService:
                     for part in response.candidates[0].content.parts:
                         if part.inline_data is not None:
                             data = part.inline_data.data
-                            logger.info("Data type from SDK: %s, first 20 bytes: %s", type(data).__name__, repr(data[:20]) if data else None)
+                            logger.info(
+                                "Data type from SDK: %s, first 20 bytes: %s",
+                                type(data).__name__,
+                                repr(data[:20]) if data else None,
+                            )
                             # Handle both bytes and base64-encoded string
                             if isinstance(data, str):
                                 data = base64.b64decode(data)
-                            elif isinstance(data, bytes) and data[:4] != b'\x89PNG' and data[:2] != b'\xff\xd8':
+                            elif (
+                                isinstance(data, bytes)
+                                and data[:4] != b"\x89PNG"
+                                and data[:2] != b"\xff\xd8"
+                            ):
                                 # Might be base64-encoded bytes
                                 try:
                                     data = base64.b64decode(data)
                                 except (ValueError, binascii.Error):
                                     pass  # Keep original data - not base64 encoded
-                            logger.info("Received styled image from %s, %d bytes", model_name, len(data))
+                            logger.info(
+                                "Received styled image from %s, %d bytes", model_name, len(data)
+                            )
                             return data
                         elif part.text:
-                            logger.debug("Model %s response text: %s...", model_name, part.text[:200])
+                            logger.debug(
+                                "Model %s response text: %s...", model_name, part.text[:200]
+                            )
 
             except Exception as e:
                 logger.debug("Model %s failed: %s", model_name, e)
@@ -183,25 +192,18 @@ class ImagenService:
                         {
                             "parts": [
                                 {"text": prompt},
-                                {
-                                    "inline_data": {
-                                        "mime_type": "image/jpeg",
-                                        "data": img_base64
-                                    }
-                                }
+                                {"inline_data": {"mime_type": "image/jpeg", "data": img_base64}},
                             ]
                         }
                     ],
-                    "generationConfig": {
-                        "responseModalities": ["IMAGE", "TEXT"]
-                    }
+                    "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
                 }
 
                 response = await client.post(
                     url,
                     json=payload,
                     params={"key": self.api_key},
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 )
 
                 if response.status_code == 200:
@@ -211,12 +213,23 @@ class ImagenService:
                         for part in parts:
                             if "inlineData" in part:
                                 image_data = base64.b64decode(part["inlineData"]["data"])
-                                logger.info("Received styled image from REST API (%s), %d bytes", model, len(image_data))
+                                logger.info(
+                                    "Received styled image from REST API (%s), %d bytes",
+                                    model,
+                                    len(image_data),
+                                )
                                 return image_data
                             elif "text" in part:
-                                logger.debug("REST API %s text response: %s...", model, part["text"][:200])
+                                logger.debug(
+                                    "REST API %s text response: %s...", model, part["text"][:200]
+                                )
                 else:
-                    logger.warning("REST API %s error: %d - %s", model, response.status_code, response.text[:500])
+                    logger.warning(
+                        "REST API %s error: %d - %s",
+                        model,
+                        response.status_code,
+                        response.text[:500],
+                    )
 
             except Exception as e:
                 logger.debug("REST API %s failed: %s", model, e)
@@ -229,8 +242,8 @@ class ImagenService:
         from PIL import ImageEnhance, ImageFilter
 
         # Ensure RGB
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
+        if image.mode != "RGB":
+            image = image.convert("RGB")
 
         if style == "ghibli":
             # Soft, dreamy look
@@ -256,7 +269,7 @@ class ImagenService:
             image = image.filter(ImageFilter.EDGE_ENHANCE)
 
         img_buffer = io.BytesIO()
-        image.save(img_buffer, format='PNG')
+        image.save(img_buffer, format="PNG")
         return img_buffer.getvalue()
 
     async def generate_animation_prompt(self, image_path: Path) -> str:
@@ -287,7 +300,7 @@ class ImagenService:
                     - Character expressions or small movements
 
                     Keep the prompt under 100 words and make it cinematic.
-                    Only return the prompt text, nothing else."""
+                    Only return the prompt text, nothing else.""",
                 ],
             )
 

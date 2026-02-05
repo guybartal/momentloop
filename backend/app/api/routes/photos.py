@@ -76,17 +76,22 @@ async def generate_prompt_for_photo(photo_id: UUID, database_url: str, max_retri
                         photo.animation_prompt = prompt
                         photo.prompt_generation_status = "completed"
                         await db.commit()
-                        logger.info("Generated video prompt for photo %s: %s...", photo_id, prompt[:50])
+                        logger.info(
+                            "Generated video prompt for photo %s: %s...", photo_id, prompt[:50]
+                        )
                         return
                     except Exception as e:
                         last_error = e
                         error_str = str(e)
                         # Check for rate limiting errors
                         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                            wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                            wait_time = (2**attempt) * 2  # 2, 4, 8 seconds
                             logger.warning(
                                 "Rate limited on attempt %d/%d for photo %s, waiting %ds before retry",
-                                attempt + 1, max_retries, photo_id, wait_time
+                                attempt + 1,
+                                max_retries,
+                                photo_id,
+                                wait_time,
                             )
                             await asyncio.sleep(wait_time)
                         else:
@@ -96,13 +101,17 @@ async def generate_prompt_for_photo(photo_id: UUID, database_url: str, max_retri
                 # All retries failed
                 logger.error(
                     "Failed to generate prompt for photo %s after %d attempts: %s",
-                    photo_id, max_retries, last_error
+                    photo_id,
+                    max_retries,
+                    last_error,
                 )
                 photo.prompt_generation_status = "failed"
                 await db.commit()
 
         except Exception as e:
-            logger.error("Database error in prompt generation for %s: %s", photo_id, e, exc_info=True)
+            logger.error(
+                "Database error in prompt generation for %s: %s", photo_id, e, exc_info=True
+            )
             # Try to mark as failed
             try:
                 async with async_session() as db:
@@ -188,9 +197,7 @@ async def upload_photos(
             )
 
         # Save file
-        relative_path = await storage_service.save_upload(
-            content, file.filename, project_id
-        )
+        relative_path = await storage_service.save_upload(content, file.filename, project_id)
 
         # Create photo record
         photo = Photo(
@@ -210,11 +217,10 @@ async def upload_photos(
 
     # Start background prompt generation for each photo
     from app.core.config import get_settings
+
     settings = get_settings()
     for photo in uploaded_photos:
-        asyncio.create_task(
-            generate_prompt_for_photo(photo.id, settings.database_url)
-        )
+        asyncio.create_task(generate_prompt_for_photo(photo.id, settings.database_url))
 
     return [photo_to_response(photo) for photo in uploaded_photos]
 
@@ -277,9 +283,7 @@ async def get_photo(
 ):
     """Get a specific photo."""
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -301,9 +305,7 @@ async def update_photo(
 ):
     """Update a photo."""
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -332,9 +334,7 @@ async def delete_photo(
 ):
     """Delete a photo."""
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -377,9 +377,7 @@ async def reorder_photos(
         )
 
     # Get all photos for the project
-    result = await db.execute(
-        select(Photo).where(Photo.project_id == project_id)
-    )
+    result = await db.execute(select(Photo).where(Photo.project_id == project_id))
     photos = {photo.id: photo for photo in result.scalars().all()}
 
     # Update photo positions
@@ -414,9 +412,7 @@ async def generate_animation_prompt(
 ):
     """Generate an animation prompt for a photo."""
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -451,9 +447,7 @@ async def regenerate_animation_prompt(
 ):
     """Regenerate an animation prompt with optional feedback."""
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -496,9 +490,7 @@ async def regenerate_styled_photo(
     from app.core.config import get_settings
 
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -509,9 +501,7 @@ async def regenerate_styled_photo(
         )
 
     # Get project to get the style
-    result = await db.execute(
-        select(Project).where(Project.id == photo.project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == photo.project_id))
     project = result.scalar_one_or_none()
 
     if not project or not project.style:

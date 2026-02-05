@@ -78,12 +78,12 @@ async def process_video_generation(
                 prompt,
                 duration=5.0,
             )
-            logger.info("Video generation complete for %s, got %d bytes", video_id, len(video_bytes))
+            logger.info(
+                "Video generation complete for %s, got %d bytes", video_id, len(video_bytes)
+            )
 
             # Save video
-            video_path = await storage_service.save_video(
-                video_bytes, project_id, "scene"
-            )
+            video_path = await storage_service.save_video(video_bytes, project_id, "scene")
             logger.debug("Saved video to: %s", video_path)
 
             # Update record and mark as selected (deselect others for same photo)
@@ -126,9 +126,7 @@ async def generate_video_from_photo(
     """Generate a video from a styled photo."""
     # Get photo with ownership check
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -272,9 +270,7 @@ async def get_video(
 ):
     """Get a specific video."""
     result = await db.execute(
-        select(Video)
-        .join(Project)
-        .where(Video.id == video_id, Project.user_id == current_user.id)
+        select(Video).join(Project).where(Video.id == video_id, Project.user_id == current_user.id)
     )
     video = result.scalar_one_or_none()
 
@@ -295,9 +291,7 @@ async def get_video_status(
 ):
     """Check the generation status of a video."""
     result = await db.execute(
-        select(Video)
-        .join(Project)
-        .where(Video.id == video_id, Project.user_id == current_user.id)
+        select(Video).join(Project).where(Video.id == video_id, Project.user_id == current_user.id)
     )
     video = result.scalar_one_or_none()
 
@@ -354,9 +348,7 @@ async def delete_video(
 ):
     """Delete a video."""
     result = await db.execute(
-        select(Video)
-        .join(Project)
-        .where(Video.id == video_id, Project.user_id == current_user.id)
+        select(Video).join(Project).where(Video.id == video_id, Project.user_id == current_user.id)
     )
     video = result.scalar_one_or_none()
 
@@ -383,9 +375,7 @@ async def list_photo_videos(
     """List all video variants for a photo."""
     # Verify ownership
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -416,9 +406,7 @@ async def select_photo_video(
     """Select a specific video as the active one for a photo."""
     # Verify ownership
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -444,9 +432,7 @@ async def select_photo_video(
         )
 
     # Deselect all videos for this photo
-    result = await db.execute(
-        select(Video).where(Video.photo_id == photo_id)
-    )
+    result = await db.execute(select(Video).where(Video.photo_id == photo_id))
     all_videos = result.scalars().all()
     for v in all_videos:
         v.is_selected = False

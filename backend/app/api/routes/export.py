@@ -29,7 +29,9 @@ def export_to_response(export: Export) -> ExportResponse:
         file_path=export.file_path,
         file_url=storage_service.get_url(export.file_path) if export.file_path else None,
         thumbnail_path=export.thumbnail_path,
-        thumbnail_url=storage_service.get_url(export.thumbnail_path) if export.thumbnail_path else None,
+        thumbnail_url=storage_service.get_url(export.thumbnail_path)
+        if export.thumbnail_path
+        else None,
         status=export.status,
         progress_step=export.progress_step,
         progress_detail=export.progress_detail,
@@ -124,8 +126,7 @@ async def process_export(
 
             # Get full paths for scene videos
             scene_paths = [
-                storage_service.get_full_path(data["video_path"])
-                for data in scene_video_data
+                storage_service.get_full_path(data["video_path"]) for data in scene_video_data
             ]
 
             await update_export_progress(
@@ -134,7 +135,11 @@ async def process_export(
 
             # PHASE 2 & 3: Generate transitions if enabled and we have multiple videos
             transition_paths = []
-            total_transitions = len(scene_video_data) - 1 if include_transitions and len(scene_video_data) > 1 else 0
+            total_transitions = (
+                len(scene_video_data) - 1
+                if include_transitions and len(scene_video_data) > 1
+                else 0
+            )
 
             if total_transitions > 0:
                 # Create temp directory for extracted frames
@@ -150,8 +155,11 @@ async def process_export(
                     # Calculate progress: 10-20% for frame extraction, 20-80% for transitions
                     frame_progress = 10 + int((i / total_transitions) * 10)
                     await update_export_progress(
-                        db, export, "extracting_frames",
-                        f"Extracting frame {i + 1} of {total_transitions}", frame_progress
+                        db,
+                        export,
+                        "extracting_frames",
+                        f"Extracting frame {i + 1} of {total_transitions}",
+                        frame_progress,
                     )
 
                     logger.info(
@@ -163,9 +171,7 @@ async def process_export(
 
                     # Extract last frame from video A
                     frame_a_end = frames_dir / f"scene_{video_a_data['id']}_last.png"
-                    await ffmpeg_service.extract_frame(
-                        video_a_path, frame_a_end, position="last"
-                    )
+                    await ffmpeg_service.extract_frame(video_a_path, frame_a_end, position="last")
 
                     # Extract first frame from video B
                     frame_b_start = frames_dir / f"scene_{video_b_data['id']}_first.png"
@@ -176,8 +182,11 @@ async def process_export(
                     # Calculate transition progress: 20-80% range
                     transition_progress = 20 + int(((i + 1) / total_transitions) * 60)
                     await update_export_progress(
-                        db, export, "generating_transitions",
-                        f"Transition {i + 1} of {total_transitions}", transition_progress
+                        db,
+                        export,
+                        "generating_transitions",
+                        f"Transition {i + 1} of {total_transitions}",
+                        transition_progress,
                     )
 
                     # Generate transition video using Kling 2.6
@@ -259,10 +268,14 @@ async def process_export(
                 transition_duration=0,  # Hard cuts between clips (AI handles transitions)
             )
 
-            await update_export_progress(db, export, "concatenating", "Videos joined successfully", 90)
+            await update_export_progress(
+                db, export, "concatenating", "Videos joined successfully", 90
+            )
 
             # PHASE 5: Generate thumbnail
-            await update_export_progress(db, export, "generating_thumbnail", "Creating preview image...", 95)
+            await update_export_progress(
+                db, export, "generating_thumbnail", "Creating preview image...", 95
+            )
 
             try:
                 # Extract first frame for thumbnail
@@ -430,7 +443,9 @@ async def get_export_status(
         export_id=str(export.id),
         status=export.status,
         file_url=storage_service.get_url(export.file_path) if export.file_path else None,
-        thumbnail_url=storage_service.get_url(export.thumbnail_path) if export.thumbnail_path else None,
+        thumbnail_url=storage_service.get_url(export.thumbnail_path)
+        if export.thumbnail_path
+        else None,
         progress=export.progress_percent,
         progress_step=export.progress_step,
         progress_detail=export.progress_detail,
@@ -502,9 +517,7 @@ async def list_project_exports(
         )
 
     result = await db.execute(
-        select(Export)
-        .where(Export.project_id == project_id)
-        .order_by(Export.created_at.desc())
+        select(Export).where(Export.project_id == project_id).order_by(Export.created_at.desc())
     )
     exports = result.scalars().all()
 

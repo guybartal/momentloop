@@ -62,7 +62,9 @@ class StorageService:
 
         return str(file_path.relative_to(self.base_path))
 
-    async def save_video(self, file_content: bytes, project_id: uuid.UUID, video_type: str = "scene") -> str:
+    async def save_video(
+        self, file_content: bytes, project_id: uuid.UUID, video_type: str = "scene"
+    ) -> str:
         """Save a generated video and return the relative path."""
         project_dir = self.videos_path / str(project_id)
         project_dir.mkdir(parents=True, exist_ok=True)
@@ -126,7 +128,13 @@ class StorageService:
 
     async def delete_project_files(self, project_id: uuid.UUID) -> None:
         """Delete all files for a project."""
-        for path in [self.uploads_path, self.styled_path, self.videos_path, self.exports_path, self.thumbnails_path]:
+        for path in [
+            self.uploads_path,
+            self.styled_path,
+            self.videos_path,
+            self.exports_path,
+            self.thumbnails_path,
+        ]:
             project_dir = path / str(project_id)
             if project_dir.exists():
                 shutil.rmtree(project_dir)

@@ -79,9 +79,7 @@ class CleanupService:
 
         async with background_session_maker() as db:
             # Get all referenced paths from database
-            photo_result = await db.execute(
-                select(Photo.original_path, Photo.styled_path)
-            )
+            photo_result = await db.execute(select(Photo.original_path, Photo.styled_path))
             photo_paths = set()
             for row in photo_result:
                 if row[0]:
@@ -100,23 +98,17 @@ class CleanupService:
         # Check uploads directory
         uploads_dir = settings.uploads_path
         if uploads_dir.exists():
-            deleted["uploads"] = self._cleanup_directory(
-                uploads_dir, all_referenced, "uploads"
-            )
+            deleted["uploads"] = self._cleanup_directory(uploads_dir, all_referenced, "uploads")
 
         # Check styled directory
         styled_dir = settings.styled_path
         if styled_dir.exists():
-            deleted["styled"] = self._cleanup_directory(
-                styled_dir, all_referenced, "styled"
-            )
+            deleted["styled"] = self._cleanup_directory(styled_dir, all_referenced, "styled")
 
         # Check videos directory
         videos_dir = settings.videos_path
         if videos_dir.exists():
-            deleted["videos"] = self._cleanup_directory(
-                videos_dir, all_referenced, "videos"
-            )
+            deleted["videos"] = self._cleanup_directory(videos_dir, all_referenced, "videos")
 
         logger.info(
             "Cleaned up orphaned files: %d uploads, %d styled, %d videos",
@@ -160,9 +152,7 @@ class CleanupService:
         deleted_count = 0
 
         async with background_session_maker() as db:
-            result = await db.execute(
-                select(Export).where(Export.status == "failed")
-            )
+            result = await db.execute(select(Export).where(Export.status == "failed"))
             failed_exports = result.scalars().all()
 
             for export in failed_exports:

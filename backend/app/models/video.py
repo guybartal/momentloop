@@ -17,9 +17,7 @@ if TYPE_CHECKING:
 class Video(Base):
     __tablename__ = "videos"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     photo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("photos.id", ondelete="SET NULL")
     )
@@ -37,11 +35,11 @@ class Video(Base):
     prompt: Mapped[str | None] = mapped_column(Text)
     duration_seconds: Mapped[float | None] = mapped_column(Float)
     position: Mapped[int | None] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, generating, ready, failed
+    status: Mapped[str] = mapped_column(
+        String(50), default="pending"
+    )  # pending, generating, ready, failed
     is_selected: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="videos")
@@ -63,20 +61,20 @@ class Video(Base):
 class Export(Base):
     __tablename__ = "exports"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
     file_path: Mapped[str | None] = mapped_column(Text)
     thumbnail_path: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, processing, ready, failed
-    progress_step: Mapped[str | None] = mapped_column(String(50))  # collecting_videos, extracting_frames, generating_transitions, concatenating, generating_thumbnail
+    status: Mapped[str] = mapped_column(
+        String(50), default="pending"
+    )  # pending, processing, ready, failed
+    progress_step: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # collecting_videos, extracting_frames, generating_transitions, concatenating, generating_thumbnail
     progress_detail: Mapped[str | None] = mapped_column(Text)  # e.g., "Transition 2 of 5"
     progress_percent: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
     is_main: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -219,7 +219,10 @@ class FalAIService:
                 # Log the full error details for debugging
                 logger.error("Transition API error: %s", e)
                 if hasattr(e, "response"):
-                    logger.error("Response body: %s", e.response.text if hasattr(e.response, "text") else e.response)
+                    logger.error(
+                        "Response body: %s",
+                        e.response.text if hasattr(e.response, "text") else e.response,
+                    )
                 raise
 
         result = await loop.run_in_executor(_fal_executor, run_job)

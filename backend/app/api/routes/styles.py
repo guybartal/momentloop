@@ -50,7 +50,9 @@ async def process_single_photo_style(
 
             # Apply style transfer with optional custom prompt
             styled_bytes = await imagen_service.apply_style(full_path, style, custom_prompt)
-            logger.debug("Style transfer complete for photo %s, got %d bytes", photo_id, len(styled_bytes))
+            logger.debug(
+                "Style transfer complete for photo %s, got %d bytes", photo_id, len(styled_bytes)
+            )
 
             # Save the styled image
             styled_path = await storage_service.save_styled(styled_bytes, original_path)
@@ -86,9 +88,15 @@ async def save_photo_result(
         if photo:
             if save_as_variant:
                 # Deselect existing variants
-                existing_variants = (await db.execute(
-                    select(StyledVariant).where(StyledVariant.photo_id == photo_id)
-                )).scalars().all()
+                existing_variants = (
+                    (
+                        await db.execute(
+                            select(StyledVariant).where(StyledVariant.photo_id == photo_id)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 for v in existing_variants:
                     v.is_selected = False
 
@@ -118,9 +126,7 @@ async def process_style_transfer_for_photo(
 
     # Get photo path
     async with background_session_maker() as db:
-        result = await db.execute(
-            select(Photo.original_path).where(Photo.id == photo_id)
-        )
+        result = await db.execute(select(Photo.original_path).where(Photo.id == photo_id))
         row = result.first()
         if not row:
             logger.warning("Photo %s not found", photo_id)
@@ -183,7 +189,9 @@ async def process_project_style_transfer(
             if needs_styling:
                 photo_data.append((photo.id, photo.original_path))
 
-        logger.info("Found %d photos to process (out of %d total)", len(photo_data), len(all_photos))
+        logger.info(
+            "Found %d photos to process (out of %d total)", len(photo_data), len(all_photos)
+        )
 
     if not photo_data:
         # No photos need processing, update project status back to draft
@@ -435,9 +443,7 @@ async def get_photo_variants(
     """Get all styled variants for a photo."""
     # Verify ownership
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -480,9 +486,7 @@ async def select_photo_variant(
     """Select a specific variant as the active styled image for a photo."""
     # Verify ownership
     result = await db.execute(
-        select(Photo)
-        .join(Project)
-        .where(Photo.id == photo_id, Project.user_id == current_user.id)
+        select(Photo).join(Project).where(Photo.id == photo_id, Project.user_id == current_user.id)
     )
     photo = result.scalar_one_or_none()
 
@@ -508,9 +512,7 @@ async def select_photo_variant(
         )
 
     # Deselect all variants for this photo
-    result = await db.execute(
-        select(StyledVariant).where(StyledVariant.photo_id == photo_id)
-    )
+    result = await db.execute(select(StyledVariant).where(StyledVariant.photo_id == photo_id))
     all_variants = result.scalars().all()
     for v in all_variants:
         v.is_selected = False

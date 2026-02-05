@@ -122,7 +122,9 @@ async def create_picker_session(
                 "expire_time": data.get("expireTime"),
             }
         else:
-            logger.warning("Picker session creation failed: %d - %s", response.status_code, response.text)
+            logger.warning(
+                "Picker session creation failed: %d - %s", response.status_code, response.text
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to create picker session: {response.text}",
@@ -221,13 +223,15 @@ async def list_session_media_items(
                 media_type = item.get("type", "")
                 if media_type == "PHOTO":
                     base_url = item.get("mediaFile", {}).get("baseUrl", "")
-                    photos.append({
-                        "id": item.get("id"),
-                        "mimeType": item.get("mediaFile", {}).get("mimeType", "image/jpeg"),
-                        "baseUrl": base_url,
-                        # Add size params to get the actual image
-                        "downloadUrl": f"{base_url}=d" if base_url else None,
-                    })
+                    photos.append(
+                        {
+                            "id": item.get("id"),
+                            "mimeType": item.get("mediaFile", {}).get("mimeType", "image/jpeg"),
+                            "baseUrl": base_url,
+                            # Add size params to get the actual image
+                            "downloadUrl": f"{base_url}=d" if base_url else None,
+                        }
+                    )
 
             return {
                 "photos": photos,
@@ -240,7 +244,9 @@ async def list_session_media_items(
                 detail="User has not finished selecting photos yet",
             )
         else:
-            logger.warning("Failed to list media items: %d - %s", response.status_code, response.text)
+            logger.warning(
+                "Failed to list media items: %d - %s", response.status_code, response.text
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to list media items: {response.text}",
@@ -333,11 +339,13 @@ async def import_google_photos(
             if item.get("type") == "PHOTO":
                 base_url = item.get("mediaFile", {}).get("baseUrl", "")
                 if base_url:
-                    all_photos.append({
-                        "id": item.get("id"),
-                        "mimeType": item.get("mediaFile", {}).get("mimeType", "image/jpeg"),
-                        "downloadUrl": f"{base_url}=d",  # =d for download
-                    })
+                    all_photos.append(
+                        {
+                            "id": item.get("id"),
+                            "mimeType": item.get("mediaFile", {}).get("mimeType", "image/jpeg"),
+                            "downloadUrl": f"{base_url}=d",  # =d for download
+                        }
+                    )
 
         page_token = data.get("nextPageToken")
         if not page_token:
@@ -357,7 +365,9 @@ async def import_google_photos(
             )
 
             if response.status_code != 200:
-                errors.append({"id": photo_info["id"], "error": f"Failed to download: {response.status_code}"})
+                errors.append(
+                    {"id": photo_info["id"], "error": f"Failed to download: {response.status_code}"}
+                )
                 continue
 
             content = response.content
@@ -375,9 +385,7 @@ async def import_google_photos(
             filename = f"google_photos_{photo_info['id']}{ext}"
 
             # Save the file
-            relative_path = await storage_service.save_upload(
-                content, filename, project_id
-            )
+            relative_path = await storage_service.save_upload(content, filename, project_id)
 
             # Create photo record
             photo = Photo(
@@ -404,9 +412,7 @@ async def import_google_photos(
     logger.info(f"Starting prompt generation for {len(imported_photos)} imported photos")
     for photo in imported_photos:
         logger.info(f"Creating prompt generation task for photo {photo.id}")
-        asyncio.create_task(
-            generate_prompt_for_photo(photo.id, settings.database_url)
-        )
+        asyncio.create_task(generate_prompt_for_photo(photo.id, settings.database_url))
 
     # Delete the session to clean up
     try:

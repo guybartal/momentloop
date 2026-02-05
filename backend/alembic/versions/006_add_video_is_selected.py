@@ -5,6 +5,7 @@ Revises: 005
 Create Date: 2024-01-27
 
 """
+
 import sqlalchemy as sa
 
 from alembic import op
@@ -17,7 +18,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("videos", sa.Column("is_selected", sa.Boolean(), nullable=False, server_default="false"))
+    op.add_column(
+        "videos", sa.Column("is_selected", sa.Boolean(), nullable=False, server_default="false")
+    )
 
 
 def downgrade() -> None:

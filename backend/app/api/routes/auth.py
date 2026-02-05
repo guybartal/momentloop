@@ -177,7 +177,9 @@ async def google_photos_callback(
                 "client_secret": settings.google_client_secret,
                 "code": code,
                 "grant_type": "authorization_code",
-                "redirect_uri": settings.google_redirect_uri.replace("/callback", "/callback/photos"),
+                "redirect_uri": settings.google_redirect_uri.replace(
+                    "/callback", "/callback/photos"
+                ),
             },
         )
 

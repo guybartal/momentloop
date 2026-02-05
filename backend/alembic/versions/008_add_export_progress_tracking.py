@@ -5,6 +5,7 @@ Revises: 007
 Create Date: 2024-02-05
 
 """
+
 import sqlalchemy as sa
 
 from alembic import op
@@ -17,26 +18,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.add_column("exports", sa.Column("thumbnail_path", sa.Text(), nullable=True))
+    op.add_column("exports", sa.Column("progress_step", sa.String(50), nullable=True))
+    op.add_column("exports", sa.Column("progress_detail", sa.Text(), nullable=True))
     op.add_column(
-        "exports",
-        sa.Column("thumbnail_path", sa.Text(), nullable=True)
+        "exports", sa.Column("progress_percent", sa.Integer(), nullable=False, server_default="0")
     )
-    op.add_column(
-        "exports",
-        sa.Column("progress_step", sa.String(50), nullable=True)
-    )
-    op.add_column(
-        "exports",
-        sa.Column("progress_detail", sa.Text(), nullable=True)
-    )
-    op.add_column(
-        "exports",
-        sa.Column("progress_percent", sa.Integer(), nullable=False, server_default="0")
-    )
-    op.add_column(
-        "exports",
-        sa.Column("error_message", sa.Text(), nullable=True)
-    )
+    op.add_column("exports", sa.Column("error_message", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 class Project(Base):
     __tablename__ = "projects"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -28,9 +26,7 @@ class Project(Base):
     style: Mapped[str | None] = mapped_column(String(50))  # ghibli, lego, minecraft, simpsons
     style_prompt: Mapped[str | None] = mapped_column(Text)  # Custom prompt for style transfer
     status: Mapped[str] = mapped_column(String(50), default="draft")  # draft, processing, complete
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

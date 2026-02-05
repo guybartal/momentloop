@@ -5,6 +5,7 @@ Revises: 006
 Create Date: 2024-01-28
 
 """
+
 import sqlalchemy as sa
 
 from alembic import op
@@ -19,7 +20,9 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "photos",
-        sa.Column("prompt_generation_status", sa.String(20), nullable=False, server_default="pending")
+        sa.Column(
+            "prompt_generation_status", sa.String(20), nullable=False, server_default="pending"
+        ),
     )
     # Set existing photos with prompts to 'completed'
     op.execute(

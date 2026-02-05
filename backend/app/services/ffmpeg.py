@@ -33,18 +33,24 @@ class FFmpegService:
             cmd = [
                 "ffmpeg",
                 "-y",
-                "-i", str(video_path),
-                "-vf", "select=eq(n\\,0)",
-                "-vframes", "1",
+                "-i",
+                str(video_path),
+                "-vf",
+                "select=eq(n\\,0)",
+                "-vframes",
+                "1",
                 str(output_path),
             ]
         else:
             # Extract last frame - first get duration
             probe_cmd = [
                 "ffprobe",
-                "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
                 str(video_path),
             ]
             result = await asyncio.to_thread(
@@ -56,29 +62,31 @@ class FFmpegService:
             cmd = [
                 "ffmpeg",
                 "-y",
-                "-ss", str(duration - 0.1),
-                "-i", str(video_path),
-                "-vframes", "1",
+                "-ss",
+                str(duration - 0.1),
+                "-i",
+                str(video_path),
+                "-vframes",
+                "1",
                 str(output_path),
             ]
 
-        await asyncio.to_thread(
-            subprocess.run, cmd, capture_output=True, check=True
-        )
+        await asyncio.to_thread(subprocess.run, cmd, capture_output=True, check=True)
         return output_path
 
     async def get_video_duration(self, video_path: Path) -> float:
         """Get the duration of a video in seconds."""
         cmd = [
             "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(video_path),
         ]
-        result = await asyncio.to_thread(
-            subprocess.run, cmd, capture_output=True, text=True
-        )
+        result = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True)
         return float(result.stdout.strip())
 
     async def concatenate_videos(
@@ -106,13 +114,13 @@ class FFmpegService:
             cmd = [
                 "ffmpeg",
                 "-y",
-                "-i", str(video_paths[0]),
-                "-c", "copy",
+                "-i",
+                str(video_paths[0]),
+                "-c",
+                "copy",
                 str(output_path),
             ]
-            await asyncio.to_thread(
-                subprocess.run, cmd, capture_output=True, check=True
-            )
+            await asyncio.to_thread(subprocess.run, cmd, capture_output=True, check=True)
             return output_path
 
         # Create a temporary file list for concat
@@ -163,16 +171,18 @@ class FFmpegService:
                 cmd = [
                     "ffmpeg",
                     "-y",
-                    "-f", "concat",
-                    "-safe", "0",
-                    "-i", concat_file,
-                    "-c", "copy",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    concat_file,
+                    "-c",
+                    "copy",
                     str(output_path),
                 ]
 
-            await asyncio.to_thread(
-                subprocess.run, cmd, capture_output=True, check=True
-            )
+            await asyncio.to_thread(subprocess.run, cmd, capture_output=True, check=True)
 
         finally:
             # Clean up temp file
@@ -200,16 +210,18 @@ class FFmpegService:
         cmd = [
             "ffmpeg",
             "-y",
-            "-i", str(video_path),
-            "-i", str(audio_path),
-            "-c:v", "copy",
-            "-c:a", "aac",
+            "-i",
+            str(video_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
             "-shortest",
             str(output_path),
         ]
-        await asyncio.to_thread(
-            subprocess.run, cmd, capture_output=True, check=True
-        )
+        await asyncio.to_thread(subprocess.run, cmd, capture_output=True, check=True)
         return output_path
 
     async def resize_video(
@@ -234,15 +246,17 @@ class FFmpegService:
         cmd = [
             "ffmpeg",
             "-y",
-            "-i", str(video_path),
-            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
-            "-c:v", "libx264",
-            "-preset", "fast",
+            "-i",
+            str(video_path),
+            "-vf",
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
             str(output_path),
         ]
-        await asyncio.to_thread(
-            subprocess.run, cmd, capture_output=True, check=True
-        )
+        await asyncio.to_thread(subprocess.run, cmd, capture_output=True, check=True)
         return output_path
 
 
