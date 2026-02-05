@@ -87,16 +87,21 @@ async def process_export(
             export.status = "processing"
             await update_export_progress(db, export, "collecting_videos", "Starting export...", 0)
 
-            # PHASE 1: Get all ready scene videos for the project (ordered by position)
+            # PHASE 1: Get selected ready scene videos for the project (ordered by photo position)
+            # Join with Photo to get proper ordering based on photo position
+            from app.models.photo import Photo
+
             result = await db.execute(
                 select(Video)
+                .join(Photo, Video.photo_id == Photo.id)
                 .where(
                     Video.project_id == project_id,
                     Video.status == "ready",
                     Video.video_path.isnot(None),
                     Video.video_type == "scene",
+                    Video.is_selected.is_(True),
                 )
-                .order_by(Video.position)
+                .order_by(Photo.position)
             )
             scene_videos = list(result.scalars().all())
 

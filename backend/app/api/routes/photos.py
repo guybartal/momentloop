@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
+from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.photo import (
     PhotoReorderRequest,
@@ -381,10 +382,22 @@ async def reorder_photos(
     )
     photos = {photo.id: photo for photo in result.scalars().all()}
 
-    # Update positions
+    # Update photo positions
     for i, photo_id in enumerate(reorder_data.photo_ids):
         if photo_id in photos:
             photos[photo_id].position = i
+
+    # Also update video positions to match their associated photos
+    result = await db.execute(
+        select(Video).where(
+            Video.project_id == project_id,
+            Video.photo_id.isnot(None),
+        )
+    )
+    videos = result.scalars().all()
+    for video in videos:
+        if video.photo_id in photos:
+            video.position = photos[video.photo_id].position
 
     await db.commit()
 
