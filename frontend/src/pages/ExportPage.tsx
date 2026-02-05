@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import type { Project, Video, Export } from "../types";
@@ -68,6 +68,11 @@ export default function ExportPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [regeneratingVideos, setRegeneratingVideos] = useState<Record<string, boolean>>({});
   const [selectedExportForPlay, setSelectedExportForPlay] = useState<Export | null>(null);
+
+  // Project name editing
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (projectId) {
@@ -210,6 +215,45 @@ export default function ExportPage() {
     }
   };
 
+  const handleStartEditName = () => {
+    if (project) {
+      setEditedName(project.name);
+      setIsEditingName(true);
+      setTimeout(() => nameInputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!project || !editedName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+
+    const trimmedName = editedName.trim();
+    if (trimmedName === project.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      await api.put(`/projects/${projectId}`, { name: trimmedName });
+      setProject({ ...project, name: trimmedName });
+      toast.success("Project renamed");
+    } catch (error) {
+      console.error("Failed to rename project:", error);
+      toast.error("Failed to rename project");
+    }
+    setIsEditingName(false);
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSaveName();
+    } else if (e.key === "Escape") {
+      setIsEditingName(false);
+    }
+  };
+
   const readyVideos = videos.filter((v) => v.status === "ready");
   const isProcessing = currentExport?.status === "pending" || currentExport?.status === "processing";
   const mainExport = exportHistory.find((e) => e.is_main && e.status === "ready");
@@ -250,7 +294,36 @@ export default function ExportPage() {
             >
               &larr; Back to project
             </Link>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Export Video</h1>
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={handleSaveName}
+                onKeyDown={handleNameKeyDown}
+                className="text-xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-b-2 border-primary-500 focus:outline-none px-1"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={handleStartEditName}
+                className="text-xl font-bold text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors flex items-center gap-1 group"
+                title="Click to rename project"
+              >
+                {project.name}
+                <svg
+                  className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
+            <span className="text-gray-400 dark:text-gray-500">|</span>
+            <span className="text-lg text-gray-600 dark:text-gray-400">Export Video</span>
           </div>
           <ThemeToggle />
         </div>

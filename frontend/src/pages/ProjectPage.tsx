@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { Project, Photo, StyleType, StyledVariant, Video, Export } from "../types";
@@ -72,6 +72,11 @@ export default function ProjectPage() {
   const debouncedStylePrompt = useDebounce(stylePrompt, 1000);
   const lastSavedStylePromptRef = useRef<string>("");
   const [showStylePrompt, setShowStylePrompt] = useState(false);
+
+  // Project name editing
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (projectId) {
@@ -460,6 +465,45 @@ export default function ProjectPage() {
     }
   };
 
+  const handleStartEditName = () => {
+    if (project) {
+      setEditedName(project.name);
+      setIsEditingName(true);
+      setTimeout(() => nameInputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!project || !editedName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+
+    const trimmedName = editedName.trim();
+    if (trimmedName === project.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      await api.put(`/projects/${projectId}`, { name: trimmedName });
+      setProject({ ...project, name: trimmedName });
+      toast.success("Project renamed");
+    } catch (error) {
+      console.error("Failed to rename project:", error);
+      toast.error("Failed to rename project");
+    }
+    setIsEditingName(false);
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSaveName();
+    } else if (e.key === "Escape") {
+      setIsEditingName(false);
+    }
+  };
+
   const handleStartExport = async () => {
     setIsExporting(true);
     try {
@@ -681,7 +725,34 @@ export default function ProjectPage() {
             <Link to="/" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
               ← Back
             </Link>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{project.name}</h1>
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={handleSaveName}
+                onKeyDown={handleNameKeyDown}
+                className="text-xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-b-2 border-primary-500 focus:outline-none px-1"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={handleStartEditName}
+                className="text-xl font-bold text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors flex items-center gap-1 group"
+                title="Click to rename project"
+              >
+                {project.name}
+                <svg
+                  className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
             <span
               className={`px-2 py-1 text-xs rounded-full ${
                 project.status === "complete"
