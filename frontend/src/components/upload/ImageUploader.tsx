@@ -85,27 +85,27 @@ export default function ImageUploader({
           {...getRootProps()}
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
             isDragActive
-              ? "border-primary-500 bg-primary-50"
-              : "border-gray-300 bg-white hover:border-gray-400"
+              ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500"
           } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           <input {...getInputProps()} />
           {isUploading ? (
             <div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                 <div
                   className="bg-primary-600 h-2 rounded-full transition-all"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
-              <p className="text-gray-600">Uploading... {uploadProgress}%</p>
+              <p className="text-gray-600 dark:text-gray-400">Uploading... {uploadProgress}%</p>
             </div>
           ) : isDragActive ? (
             <p className="text-primary-600">Drop the images here...</p>
           ) : (
             <div>
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
                 stroke="currentColor"
                 fill="none"
                 viewBox="0 0 48 48"
@@ -117,10 +117,10 @@ export default function ImageUploader({
                   strokeLinejoin="round"
                 />
               </svg>
-              <p className="text-gray-600 mt-2">
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Drag and drop photos here, or click to browse
               </p>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                 JPG, PNG, GIF, WEBP up to 10MB
               </p>
             </div>
@@ -131,7 +131,7 @@ export default function ImageUploader({
         <button
           onClick={() => setShowGooglePhotosPicker(true)}
           disabled={isUploading}
-          className={`w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-xl bg-white hover:bg-gray-50 transition-colors ${
+          className={`w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
             isUploading ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
@@ -150,7 +150,7 @@ export default function ImageUploader({
             <path d="M8 11h8" stroke="#34A853" strokeWidth="2" strokeLinecap="round" />
             <path d="M12 8v8" stroke="#FBBC05" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <span className="text-gray-700">Import from Google Photos</span>
+          <span className="text-gray-700 dark:text-gray-300">Import from Google Photos</span>
         </button>
       </div>
 

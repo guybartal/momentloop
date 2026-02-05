@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { Project, Video, Export } from "../types";
 import api from "../services/api";
 import ExportProgressStepper from "../components/export/ExportProgressStepper";
+import ThemeToggle from "../components/common/ThemeToggle";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -218,7 +219,7 @@ export default function ExportPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
@@ -226,9 +227,9 @@ export default function ExportPage() {
 
   if (!project) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Project not found</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Project not found</p>
           <Link to="/" className="text-primary-600 hover:text-primary-700">
             Back to dashboard
           </Link>
@@ -238,27 +239,28 @@ export default function ExportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Link
               to={`/projects/${projectId}`}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
             >
               &larr; Back to project
             </Link>
-            <h1 className="text-xl font-bold text-gray-900">Export Video</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Export Video</h1>
           </div>
+          <ThemeToggle />
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Current Export / Video Preview Section */}
-        <div className="bg-white rounded-xl shadow-sm p-8 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6 flex items-center gap-2">
             <FilmIcon className="w-5 h-5 text-primary-600" />
             Video Export
           </h2>
@@ -291,7 +293,7 @@ export default function ExportPage() {
 
           {/* Currently viewing indicator */}
           {displayExport && !isProcessing && (
-            <div className="text-center mb-4 text-sm text-gray-500">
+            <div className="text-center mb-4 text-sm text-gray-500 dark:text-gray-400">
               Viewing: {displayExport.is_main ? "Main export" : selectedExportForPlay ? "Selected export" : "Latest export"}
               from {new Date(displayExport.created_at).toLocaleDateString()}
               {selectedExportForPlay && (
@@ -307,30 +309,30 @@ export default function ExportPage() {
 
           {/* Video Stats */}
           <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-gray-50 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {readyVideos.length}
               </div>
-              <div className="text-sm text-gray-500">Ready Videos</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Ready Videos</div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {videos.filter((v) => v.video_type === "scene").length}
               </div>
-              <div className="text-sm text-gray-500">Scenes</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Scenes</div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {videos.filter((v) => v.video_type === "transition").length}
               </div>
-              <div className="text-sm text-gray-500">Transitions</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Transitions</div>
             </div>
           </div>
 
           {/* Export Controls */}
           <div className="text-center">
             {readyVideos.length === 0 ? (
-              <div className="text-gray-500">
+              <div className="text-gray-500 dark:text-gray-400">
                 <p className="mb-2">No videos ready to export</p>
                 <Link
                   to={`/projects/${projectId}`}
@@ -340,7 +342,7 @@ export default function ExportPage() {
                 </Link>
               </div>
             ) : isProcessing ? (
-              <div className="text-gray-500">
+              <div className="text-gray-500 dark:text-gray-400">
                 <p className="font-medium">Export in progress...</p>
               </div>
             ) : displayExport ? (
@@ -378,11 +380,11 @@ export default function ExportPage() {
 
         {/* Video List with Regenerate */}
         {videos.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
               Videos in Export
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Regenerate individual videos and then re-export to update the final video.
             </p>
             <div className="space-y-2">
@@ -392,7 +394,7 @@ export default function ExportPage() {
                 .map((video, index) => (
                   <div
                     key={video.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <span className="text-gray-400 text-sm w-6">
@@ -442,11 +444,11 @@ export default function ExportPage() {
 
         {/* Export History */}
         {exportHistory.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
               All Exports
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Click on any export to preview it. Set one as main to display it in the project list and project page.
             </p>
             <div className="space-y-3">
@@ -455,16 +457,16 @@ export default function ExportPage() {
                   key={exp.id}
                   className={`flex items-center justify-between p-4 rounded-lg cursor-pointer transition-colors ${
                     selectedExportForPlay?.id === exp.id
-                      ? "bg-primary-50 border-2 border-primary-300"
+                      ? "bg-primary-50 dark:bg-primary-900/20 border-2 border-primary-300 dark:border-primary-700"
                       : exp.is_main
-                      ? "bg-yellow-50 border border-yellow-200"
-                      : "bg-gray-50 hover:bg-gray-100"
+                      ? "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
+                      : "bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600"
                   }`}
                   onClick={() => exp.status === "ready" && setSelectedExportForPlay(exp)}
                 >
                   <div className="flex items-center gap-4">
                     {/* Thumbnail */}
-                    <div className="w-24 h-14 bg-gray-200 rounded overflow-hidden flex-shrink-0 relative">
+                    <div className="w-24 h-14 bg-gray-200 dark:bg-gray-600 rounded overflow-hidden flex-shrink-0 relative">
                       {exp.thumbnail_url ? (
                         <img
                           src={`${API_URL}${exp.thumbnail_url}`}
@@ -484,11 +486,11 @@ export default function ExportPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {new Date(exp.created_at).toLocaleString()}
                         </span>
                         {exp.is_main && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full">
                             <StarIcon className="w-3 h-3" filled />
                             Main
                           </span>
@@ -498,16 +500,16 @@ export default function ExportPage() {
                         <span
                           className={`px-2 py-0.5 text-xs rounded-full ${
                             exp.status === "ready"
-                              ? "bg-green-100 text-green-700"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                               : exp.status === "processing" || exp.status === "pending"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
+                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                              : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                           }`}
                         >
                           {exp.status}
                         </span>
                         {exp.error_message && (
-                          <span className="text-xs text-red-500">{exp.error_message}</span>
+                          <span className="text-xs text-red-500 dark:text-red-400">{exp.error_message}</span>
                         )}
                       </div>
                     </div>
@@ -518,7 +520,7 @@ export default function ExportPage() {
                         {!exp.is_main && (
                           <button
                             onClick={() => setMainExport(exp.id)}
-                            className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded transition-colors"
+                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors"
                             title="Set as main export"
                           >
                             <StarIcon className="w-4 h-4" />
@@ -529,7 +531,7 @@ export default function ExportPage() {
                           download={`export-${exp.id}.mp4`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
                           title="Download"
                         >
                           <DownloadIcon className="w-4 h-4" />
@@ -538,7 +540,7 @@ export default function ExportPage() {
                     )}
                     <button
                       onClick={() => deleteExport(exp.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                       title="Delete export"
                     >
                       <TrashIcon className="w-4 h-4" />

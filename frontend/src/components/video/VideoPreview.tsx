@@ -14,7 +14,7 @@ export default function VideoPreview({
   const videoUrl = video.video_url ? `${apiUrl}${video.video_url}` : null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
       <div className="aspect-video bg-gray-900 flex items-center justify-center">
         {video.status === "ready" && videoUrl ? (
           <video
@@ -66,25 +66,25 @@ export default function VideoPreview({
       </div>
       <div className="p-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium capitalize">
+          <span className="text-sm font-medium capitalize text-gray-900 dark:text-gray-100">
             {video.video_type}
           </span>
           <span
             className={`px-2 py-0.5 text-xs rounded-full ${
               video.status === "ready"
-                ? "bg-green-100 text-green-700"
+                ? "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300"
                 : video.status === "generating"
-                ? "bg-yellow-100 text-yellow-700"
+                ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300"
                 : video.status === "failed"
-                ? "bg-red-100 text-red-700"
-                : "bg-gray-100 text-gray-700"
+                ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300"
+                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
             }`}
           >
             {video.status}
           </span>
         </div>
         {video.prompt && (
-          <p className="text-xs text-gray-500 line-clamp-2">{video.prompt}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{video.prompt}</p>
         )}
         {onRegenerate && video.status !== "generating" && (
           <button

@@ -64,7 +64,7 @@ function SortablePhoto({
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`relative bg-white rounded-lg shadow-sm overflow-hidden cursor-pointer transition-all ${
+      className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden cursor-pointer transition-all ${
         isDragging ? "opacity-50 scale-105" : ""
       } ${isSelected ? "ring-2 ring-primary-500" : "hover:shadow-md"}`}
     >
@@ -137,7 +137,7 @@ export default function PhotoGallery({
 
   if (photos.length === 0) {
     return (
-      <p className="text-gray-500 text-center py-8">
+      <p className="text-gray-500 dark:text-gray-400 text-center py-8">
         No photos yet. Upload some to get started.
       </p>
     );
@@ -152,8 +152,8 @@ export default function PhotoGallery({
             onClick={() => setShowOriginal(!showOriginal)}
             className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
               showOriginal
-                ? "bg-gray-100 border-gray-300 text-gray-700"
-                : "bg-purple-50 border-purple-300 text-purple-700"
+                ? "bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                : "bg-purple-50 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300"
             }`}
           >
             <svg

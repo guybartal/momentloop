@@ -47,13 +47,13 @@ export default function StyleSelector({
           disabled={disabled}
           className={`p-4 rounded-xl text-left border-2 transition-all ${
             selectedStyle === style.id
-              ? "border-primary-500 bg-primary-50 shadow-md"
-              : "border-gray-200 hover:border-gray-300 bg-white"
+              ? "border-primary-500 bg-primary-50 dark:bg-primary-900/30 shadow-md"
+              : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800"
           } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <div className="text-3xl mb-2">{style.emoji}</div>
-          <div className="font-medium text-gray-900">{style.name}</div>
-          <div className="text-xs text-gray-500 mt-1">{style.description}</div>
+          <div className="font-medium text-gray-900 dark:text-gray-100">{style.name}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{style.description}</div>
         </button>
       ))}
     </div>

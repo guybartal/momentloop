@@ -219,7 +219,7 @@ export default function GooglePhotosPicker({
       onClick={state !== "importing" ? onClose : undefined}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 flex flex-col items-center"
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 flex flex-col items-center"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -233,21 +233,21 @@ export default function GooglePhotosPicker({
             <path d="M8 12h8" stroke="#34A853" strokeWidth="2" strokeLinecap="round" />
             <path d="M12 8v8" stroke="#FBBC05" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <h2 className="text-xl font-semibold">Import from Google Photos</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Import from Google Photos</h2>
         </div>
 
         {/* States */}
         {state === "checking" && (
           <div className="flex flex-col items-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
-            <p className="text-gray-600">Checking connection...</p>
+            <p className="text-gray-600 dark:text-gray-400">Checking connection...</p>
           </div>
         )}
 
         {state === "not_connected" && (
           <div className="flex flex-col items-center py-4">
             <svg
-              className="w-16 h-16 text-gray-300 mb-4"
+              className="w-16 h-16 text-gray-300 dark:text-gray-600 mb-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -259,10 +259,10 @@ export default function GooglePhotosPicker({
                 d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
               Connect Google Photos
             </h3>
-            <p className="text-gray-500 text-center mb-6 max-w-sm">
+            <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
               Allow access to select photos from your Google Photos library.
             </p>
             <button
@@ -283,7 +283,7 @@ export default function GooglePhotosPicker({
         {state === "creating_session" && (
           <div className="flex flex-col items-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
-            <p className="text-gray-600">Opening photo picker...</p>
+            <p className="text-gray-600 dark:text-gray-400">Opening photo picker...</p>
           </div>
         )}
 
@@ -302,13 +302,13 @@ export default function GooglePhotosPicker({
                 d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
               Select Your Photos
             </h3>
-            <p className="text-gray-500 text-center mb-6 max-w-sm">
+            <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
               A Google Photos picker window has opened. Select the photos you want to import and click "Done".
             </p>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
               Waiting for selection...
             </div>
@@ -326,7 +326,7 @@ export default function GooglePhotosPicker({
         {state === "importing" && (
           <div className="flex flex-col items-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
-            <p className="text-gray-600">{importProgress}</p>
+            <p className="text-gray-600 dark:text-gray-400">{importProgress}</p>
           </div>
         )}
 
@@ -345,7 +345,7 @@ export default function GooglePhotosPicker({
                 d="M5 13l4 4L19 7"
               />
             </svg>
-            <p className="text-gray-600">{importProgress}</p>
+            <p className="text-gray-600 dark:text-gray-400">{importProgress}</p>
           </div>
         )}
 
@@ -364,7 +364,7 @@ export default function GooglePhotosPicker({
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <p className="text-red-600 text-center mb-4">{error}</p>
+            <p className="text-red-600 dark:text-red-400 text-center mb-4">{error}</p>
             <div className="flex gap-3">
               <button
                 onClick={handleRetry}
@@ -374,7 +374,7 @@ export default function GooglePhotosPicker({
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 Cancel
               </button>
@@ -386,7 +386,7 @@ export default function GooglePhotosPicker({
         {state !== "importing" && state !== "done" && (
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

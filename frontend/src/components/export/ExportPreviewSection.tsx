@@ -72,11 +72,11 @@ export default function ExportPreviewSection({
   const showingMainExport = !currentExport && mainExport && exportToShow?.id === mainExport.id;
 
   return (
-    <section className="bg-white rounded-xl shadow-sm p-6 mb-8">
+    <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <FilmIcon className="w-5 h-5 text-primary-600" />
-          <h2 className="text-lg font-semibold">Export Preview</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Export Preview</h2>
         </div>
         <Link
           to={`/projects/${projectId}/export`}
@@ -89,7 +89,7 @@ export default function ExportPreviewSection({
       {/* Content based on state */}
       {isProcessing && currentExport ? (
         /* Export in progress */
-        <div className="bg-gray-50 rounded-lg p-6">
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
           <ExportProgressStepper
             currentStep={currentExport.progress_step}
             detail={currentExport.progress_detail}
@@ -108,9 +108,9 @@ export default function ExportPreviewSection({
             />
           </div>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               {showingMainExport && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 rounded-full">
                   <StarIcon className="w-3 h-3" />
                   Main
                 </span>
@@ -123,7 +123,7 @@ export default function ExportPreviewSection({
                 download={`export-${exportToShow.id}.mp4`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
               >
                 <DownloadIcon className="w-4 h-4" />
                 Download
@@ -141,10 +141,10 @@ export default function ExportPreviewSection({
         </div>
       ) : exportToShow?.status === "failed" ? (
         /* Failed export */
-        <div className="bg-red-50 rounded-lg p-6 text-center">
-          <p className="text-red-600 mb-2">Export failed</p>
+        <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-6 text-center">
+          <p className="text-red-600 dark:text-red-400 mb-2">Export failed</p>
           {exportToShow.error_message && (
-            <p className="text-sm text-red-500 mb-4">{exportToShow.error_message}</p>
+            <p className="text-sm text-red-500 dark:text-red-400 mb-4">{exportToShow.error_message}</p>
           )}
           <button
             onClick={onExport}
@@ -157,9 +157,9 @@ export default function ExportPreviewSection({
         </div>
       ) : (
         /* No export yet */
-        <div className="bg-gray-50 rounded-lg p-8 text-center">
-          <PlayIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center">
+          <PlayIcon className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             {canExport
               ? "No export yet. Create your first video export!"
               : "Generate at least 2 videos to create an export."}
@@ -170,7 +170,7 @@ export default function ExportPreviewSection({
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               canExport
                 ? "bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
             }`}
           >
             <FilmIcon className="w-4 h-4" />

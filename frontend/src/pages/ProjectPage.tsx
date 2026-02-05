@@ -8,6 +8,7 @@ import PhotoGallery from "../components/gallery/PhotoGallery";
 import Lightbox from "../components/common/Lightbox";
 import GeneratingTimer from "../components/common/GeneratingTimer";
 import ExportPreviewSection from "../components/export/ExportPreviewSection";
+import ThemeToggle from "../components/common/ThemeToggle";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -644,7 +645,7 @@ export default function ProjectPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
@@ -652,9 +653,9 @@ export default function ProjectPage() {
 
   if (!project) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Project not found</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Project not found</p>
           <Link to="/" className="text-primary-600 hover:text-primary-700">
             Back to dashboard
           </Link>
@@ -672,41 +673,41 @@ export default function ProjectPage() {
   const canExport = readyVideoCount >= 2;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-900">
+            <Link to="/" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
               ← Back
             </Link>
-            <h1 className="text-xl font-bold text-gray-900">{project.name}</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{project.name}</h1>
             <span
               className={`px-2 py-1 text-xs rounded-full ${
                 project.status === "complete"
-                  ? "bg-green-100 text-green-700"
+                  ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                   : project.status === "processing"
-                  ? "bg-yellow-100 text-yellow-700"
-                  : "bg-gray-100 text-gray-700"
+                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                  : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
               }`}
             >
               {project.status}
             </span>
             {project.style && (
-              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700">
+              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
                 {project.style}
               </span>
             )}
           </div>
           <div className="flex items-center gap-3">
             {/* View Mode Toggle */}
-            <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+            <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`px-3 py-1.5 text-sm ${
                   viewMode === "grid"
                     ? "bg-primary-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
                 }`}
               >
                 Grid
@@ -716,12 +717,13 @@ export default function ProjectPage() {
                 className={`px-3 py-1.5 text-sm ${
                   viewMode === "compare"
                     ? "bg-primary-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
                 }`}
               >
                 Compare
               </button>
             </div>
+            <ThemeToggle />
             {canExport ? (
               <Link
                 to={`/projects/${projectId}/export`}
@@ -731,7 +733,7 @@ export default function ProjectPage() {
               </Link>
             ) : (
               <span
-                className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
                 title="Generate at least 2 videos first"
               >
                 Export Video
@@ -739,7 +741,7 @@ export default function ProjectPage() {
             )}
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="px-4 py-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
               title="Delete Project"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -753,17 +755,17 @@ export default function ProjectPage() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
               Delete Project?
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Are you sure you want to delete "{project.name}"? This will permanently delete all photos, styled images, and videos. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -796,7 +798,7 @@ export default function ProjectPage() {
             <div className="lg:col-span-2 space-y-8">
               {/* Upload Section */}
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                   Upload Photos
                 </h2>
                 <ImageUploader
@@ -809,13 +811,13 @@ export default function ProjectPage() {
               {/* Photos Grid */}
               <section>
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     Photos ({photos.length})
                   </h2>
                   {selectedPhoto && (
                     <button
                       onClick={() => handleDeletePhoto(selectedPhoto.id)}
-                      className="text-red-600 hover:text-red-700 text-sm"
+                      className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm"
                     >
                       Delete Selected
                     </button>
@@ -834,23 +836,23 @@ export default function ProjectPage() {
             {/* Sidebar */}
             <div className="space-y-8">
               {/* Style Selection */}
-              <section className="bg-white rounded-xl shadow-sm p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                   Project Style
                 </h2>
 
                 {isProcessing && (
-                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                        <span className="text-yellow-700 text-sm">
+                        <span className="text-yellow-700 dark:text-yellow-300 text-sm">
                           Generating styled images... ({stylingCount} remaining)
                         </span>
                       </div>
                       <button
                         onClick={handleResetStuck}
-                        className="text-xs text-yellow-700 hover:text-yellow-900 underline"
+                        className="text-xs text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 underline"
                         title="Reset stuck photos if generation seems frozen"
                       >
                         Reset
@@ -867,18 +869,18 @@ export default function ProjectPage() {
                       disabled={isProcessing}
                       className={`p-3 rounded-lg text-center border-2 transition-colors ${
                         project.style === style.id
-                          ? "border-primary-500 bg-primary-50"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+                          : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
                       } ${
                         isProcessing
                           ? "opacity-50 cursor-not-allowed"
                           : "cursor-pointer"
                       }`}
                     >
-                      <div className="aspect-video bg-gray-100 rounded mb-2 flex items-center justify-center text-2xl">
+                      <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded mb-2 flex items-center justify-center text-2xl">
                         {style.icon}
                       </div>
-                      <span className="font-medium capitalize text-sm">
+                      <span className="font-medium capitalize text-sm text-gray-900 dark:text-gray-100">
                         {style.label}
                       </span>
                     </button>
@@ -889,7 +891,7 @@ export default function ProjectPage() {
                 <div className="mb-4">
                   <button
                     onClick={() => setShowStylePrompt(!showStylePrompt)}
-                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+                    className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                   >
                     <svg
                       className={`w-4 h-4 transition-transform ${showStylePrompt ? "rotate-90" : ""}`}
@@ -901,7 +903,7 @@ export default function ProjectPage() {
                     </svg>
                     Customize Style Prompt
                     {stylePrompt && (
-                      <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                      <span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
                         Custom
                       </span>
                     )}
@@ -912,10 +914,10 @@ export default function ProjectPage() {
                         value={stylePrompt}
                         onChange={(e) => setStylePrompt(e.target.value)}
                         placeholder="Enter a custom prompt for style transfer, or leave empty to use the default prompt for the selected style..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                         rows={4}
                       />
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                         Auto-saves as you type. Leave empty to use default style prompt.
                       </p>
                     </div>
@@ -929,7 +931,7 @@ export default function ProjectPage() {
                   className={`w-full py-3 px-4 rounded-lg font-medium text-white transition-colors ${
                     canGenerate
                       ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
-                      : "bg-gray-400 cursor-not-allowed"
+                      : "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
                   }`}
                 >
                   {isProcessing || isApplyingStyle ? (
@@ -943,7 +945,7 @@ export default function ProjectPage() {
                 </button>
 
                 {photos.length === 0 && (
-                  <p className="text-sm text-gray-500 mt-3 text-center">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 text-center">
                     Upload photos first
                   </p>
                 )}

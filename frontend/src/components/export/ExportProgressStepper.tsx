@@ -55,13 +55,13 @@ export default function ExportProgressStepper({
   return (
     <div className="space-y-4">
       {/* Progress bar */}
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
         <div
           className="bg-primary-600 h-2.5 rounded-full transition-all duration-500"
           style={{ width: `${percent}%` }}
         />
       </div>
-      <div className="text-sm text-gray-500 text-center">{percent}% complete</div>
+      <div className="text-sm text-gray-500 dark:text-gray-400 text-center">{percent}% complete</div>
 
       {/* Steps */}
       <div className="space-y-3">
@@ -71,7 +71,7 @@ export default function ExportProgressStepper({
             <div
               key={step.id}
               className={`flex items-center gap-3 ${
-                status === "pending" ? "text-gray-400" : "text-gray-900"
+                status === "pending" ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"
               }`}
             >
               {status === "completed" ? (
@@ -79,13 +79,13 @@ export default function ExportProgressStepper({
               ) : status === "in_progress" ? (
                 <LoaderIcon className="w-5 h-5 text-primary-600 animate-spin" />
               ) : (
-                <CircleIcon className="w-5 h-5 text-gray-300" />
+                <CircleIcon className="w-5 h-5 text-gray-300 dark:text-gray-600" />
               )}
               <span className={status === "in_progress" ? "font-medium" : ""}>
                 {step.label}
               </span>
               {step.id === currentStep && detail && (
-                <span className="text-sm text-gray-500 ml-auto">{detail}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 ml-auto">{detail}</span>
               )}
             </div>
           );
