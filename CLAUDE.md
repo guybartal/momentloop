@@ -14,11 +14,11 @@ docker compose logs -f backend    # Tail backend logs
 ### Backend (Python/FastAPI)
 ```bash
 cd backend
-source venv/bin/activate          # Activate virtualenv
-pip install -r requirements.txt   # Install dependencies
-uvicorn app.main:app --reload     # Run dev server (port 8000)
-alembic upgrade head              # Run database migrations
-alembic revision --autogenerate -m "description"  # Create migration
+uv sync                           # Install dependencies
+uv sync --extra dev               # Install with dev dependencies
+uv run uvicorn app.main:app --reload     # Run dev server (port 8000)
+uv run alembic upgrade head              # Run database migrations
+uv run alembic revision --autogenerate -m "description"  # Create migration
 ```
 
 ### Frontend (React/Vite)
@@ -33,15 +33,15 @@ npm run lint                      # ESLint check
 ### Testing
 ```bash
 cd backend
-pytest                            # Run all tests
-pytest tests/test_auth.py         # Run single test file
-pytest -k "test_name"             # Run tests matching pattern
-pytest --cov=app                  # Run with coverage
+uv run pytest                     # Run all tests
+uv run pytest tests/test_auth.py  # Run single test file
+uv run pytest -k "test_name"      # Run tests matching pattern
+uv run pytest --cov=app           # Run with coverage
 ```
 
 ### Linting
 ```bash
-cd backend && ruff check .        # Python linting (ruff)
+cd backend && uv run ruff check . # Python linting (ruff)
 cd frontend && npm run lint       # TypeScript/React linting (eslint)
 ```
 
