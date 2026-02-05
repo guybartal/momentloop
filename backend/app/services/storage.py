@@ -89,7 +89,12 @@ class StorageService:
 
     def get_full_path(self, relative_path: str) -> Path:
         """Get the full filesystem path from a relative path."""
-        return self.base_path / relative_path
+        full_path = (self.base_path / relative_path).resolve()
+        base_resolved = self.base_path.resolve()
+        # Ensure the resolved path is within the base storage directory
+        if not str(full_path).startswith(str(base_resolved) + "/") and full_path != base_resolved:
+            raise ValueError("Invalid path: path traversal detected")
+        return full_path
 
     def get_url(self, relative_path: str) -> str:
         """Get the URL for serving a file."""

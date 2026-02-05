@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core.concurrency import get_semaphore_manager
-from app.core.database import get_db, background_session_maker
+from app.core.database import background_session_maker, get_db
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.styled_variant import StyledVariant

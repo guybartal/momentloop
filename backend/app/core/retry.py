@@ -8,7 +8,6 @@ from tenacity import (
     wait_exponential,
 )
 
-
 # Retry decorator for HTTP API calls with exponential backoff
 api_retry = retry(
     stop=stop_after_attempt(3),

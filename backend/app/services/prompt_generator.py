@@ -1,3 +1,5 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from google import genai
@@ -6,6 +8,9 @@ from PIL import Image
 from app.core.config import get_settings
 
 settings = get_settings()
+
+# Shared thread pool for CPU-bound operations
+_prompt_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="prompt_gen_")
 
 
 class PromptGeneratorService:
@@ -34,7 +39,10 @@ class PromptGeneratorService:
         if not self.client:
             raise RuntimeError("Google AI API key not configured")
 
-        image = Image.open(image_path)
+        loop = asyncio.get_running_loop()
+
+        # Load image in thread pool to avoid blocking
+        image = await loop.run_in_executor(_prompt_executor, Image.open, image_path)
 
         prompt = """Analyze this image and generate a short, cinematic video animation prompt.
 
@@ -46,10 +54,14 @@ Your prompt should describe:
 Keep the prompt under 60 words. Focus on subtle, realistic movements that bring the image to life.
 Write ONLY the animation prompt, nothing else. Do not include labels like "Subject Actions:" - just write a flowing description."""
 
-        response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[image, prompt],
-        )
+        # Call SDK in thread pool (it's synchronous)
+        def call_api():
+            return self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[image, prompt],
+            )
+
+        response = await loop.run_in_executor(_prompt_executor, call_api)
 
         return response.text.strip()
 
@@ -86,7 +98,10 @@ Write ONLY the animation prompt, nothing else. Do not include labels like "Subje
         if not self.client:
             raise RuntimeError("Google AI API key not configured")
 
-        image = Image.open(image_path)
+        loop = asyncio.get_running_loop()
+
+        # Load image in thread pool to avoid blocking
+        image = await loop.run_in_executor(_prompt_executor, Image.open, image_path)
 
         feedback_context = ""
         if feedback:
@@ -105,10 +120,14 @@ Generate a new video animation prompt that improves on the current one. The prom
 Keep it under 60 words. Focus on subtle, realistic movements.
 Write ONLY the animation prompt, nothing else."""
 
-        response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[image, prompt],
-        )
+        # Call SDK in thread pool (it's synchronous)
+        def call_api():
+            return self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[image, prompt],
+            )
+
+        response = await loop.run_in_executor(_prompt_executor, call_api)
 
         return response.text.strip()
 

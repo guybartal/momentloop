@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.security import create_access_token
 from app.models.user import User
-from app.schemas.user import GoogleUserInfo, TokenResponse, UserResponse
+from app.schemas.user import GoogleUserInfo, UserResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -95,8 +95,9 @@ async def google_callback(request: Request, code: str, db: AsyncSession = Depend
 
         tokens = token_response.json()
         access_token = tokens.get("access_token")
-        refresh_token = tokens.get("refresh_token")
-        expires_in = tokens.get("expires_in", 3600)
+        # These are extracted but unused for basic login (tokens stored only for Photos scope)
+        _ = tokens.get("refresh_token")
+        _ = tokens.get("expires_in", 3600)
 
         # Get user info from Google
         userinfo_response = await client.get(
@@ -212,7 +213,7 @@ async def google_photos_callback(
     user.google_access_token = access_token
     if refresh_token:
         user.google_refresh_token = refresh_token
-    user.google_token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    user.google_token_expiry = datetime.now(UTC) + timedelta(seconds=expires_in)
 
     await db.commit()
 
@@ -253,7 +254,7 @@ async def google_photos_status(
     token_expired = False
 
     if current_user.google_token_expiry:
-        token_expired = current_user.google_token_expiry < datetime.now(timezone.utc)
+        token_expired = current_user.google_token_expiry < datetime.now(UTC)
 
     if not has_token or token_expired:
         # Try to refresh if we have a refresh token
@@ -310,7 +311,7 @@ async def refresh_google_token(user: User, db: AsyncSession) -> str | None:
         tokens = response.json()
         user.google_access_token = tokens.get("access_token")
         expires_in = tokens.get("expires_in", 3600)
-        user.google_token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        user.google_token_expiry = datetime.now(UTC) + timedelta(seconds=expires_in)
 
         await db.commit()
         return user.google_access_token

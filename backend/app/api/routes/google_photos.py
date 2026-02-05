@@ -13,7 +13,7 @@ The Picker API works differently:
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import httpx
@@ -75,7 +75,7 @@ async def get_valid_google_token(user: User, db: AsyncSession) -> str:
         )
 
     # Check if token is expired
-    if user.google_token_expiry and user.google_token_expiry < datetime.now(timezone.utc):
+    if user.google_token_expiry and user.google_token_expiry < datetime.now(UTC):
         # Try to refresh
         new_token = await refresh_google_token(user, db)
         if not new_token:

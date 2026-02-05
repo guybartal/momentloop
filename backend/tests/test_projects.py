@@ -3,8 +3,6 @@
 import pytest
 from httpx import AsyncClient
 
-from app.models.user import User
-
 
 @pytest.mark.asyncio
 async def test_list_projects_unauthenticated(client: AsyncClient):

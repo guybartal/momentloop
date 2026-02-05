@@ -8,12 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.concurrency import get_semaphore_manager
-from app.core.database import get_db, background_session_maker
+from app.core.database import background_session_maker, get_db
 from app.models.photo import Photo
 from app.models.project import Project
 from app.models.user import User
 from app.models.video import Video
-from app.schemas.video import GenerateVideoRequest, SelectVideoRequest, TransitionVideoRequest, VideoResponse
+from app.schemas.video import (
+    GenerateVideoRequest,
+    SelectVideoRequest,
+    TransitionVideoRequest,
+    VideoResponse,
+)
 from app.services.fal_ai import fal_ai_service
 from app.services.storage import storage_service
 

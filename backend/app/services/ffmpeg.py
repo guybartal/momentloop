@@ -1,7 +1,6 @@
 import asyncio
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
 
 from app.core.config import get_settings

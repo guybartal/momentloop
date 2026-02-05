@@ -1,12 +1,10 @@
 """File cleanup service for removing old exports and orphaned files."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import background_session_maker
@@ -36,7 +34,7 @@ class CleanupService:
         if retention_days is None:
             retention_days = settings.export_retention_days
 
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
         deleted_count = 0
 
         async with background_session_maker() as db:

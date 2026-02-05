@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import binascii
 import io
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -27,16 +28,18 @@ _image_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="imagen_"
 
 # Shared HTTP client for API calls
 _http_client: httpx.AsyncClient | None = None
+_http_client_lock = asyncio.Lock()
 
 
 async def _get_http_client() -> httpx.AsyncClient:
     """Get or create a shared HTTP client."""
     global _http_client
-    if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(120.0),
-            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-        )
+    async with _http_client_lock:
+        if _http_client is None or _http_client.is_closed:
+            _http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(120.0),
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            )
     return _http_client
 
 
@@ -147,8 +150,8 @@ class ImagenService:
                                 # Might be base64-encoded bytes
                                 try:
                                     data = base64.b64decode(data)
-                                except Exception:
-                                    pass  # Keep original data
+                                except (ValueError, binascii.Error):
+                                    pass  # Keep original data - not base64 encoded
                             logger.info("Received styled image from %s, %d bytes", model_name, len(data))
                             return data
                         elif part.text:
