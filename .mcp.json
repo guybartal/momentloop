@@ -8,6 +8,19 @@
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp", "--api-key", "ctx7sk-97d0dc50-de62-4636-9901-8418604e939f"],
       "description": "Live documentation lookup"
+    },
+    "Azure MCP Server": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@azure/mcp@latest",
+        "server",
+        "start"
+      ]
+    },
+    "gitmcp": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://gitmcp.io/docs"]
     }
   }
 }
