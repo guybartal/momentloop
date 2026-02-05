@@ -1,11 +1,13 @@
 import asyncio
 import base64
+import io
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import fal_client
 import httpx
+from PIL import Image
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import get_settings
@@ -156,35 +158,35 @@ class FalAIService:
 
         loop = asyncio.get_running_loop()
 
-        # Read both images
-        def read_images():
-            with open(start_image_path, "rb") as f:
-                start_data = f.read()
-            with open(end_image_path, "rb") as f:
-                end_data = f.read()
+        # Read and compress images to reduce size (max 1920x1080, JPEG quality 85)
+        def read_and_compress_images():
+            def compress_image(path: Path) -> bytes:
+                with Image.open(path) as img:
+                    # Convert to RGB if necessary (for PNG with alpha)
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+
+                    # Resize if too large (max 1920x1080 while maintaining aspect ratio)
+                    max_size = (1920, 1080)
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+                    # Save as JPEG with good quality
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=85, optimize=True)
+                    return buffer.getvalue()
+
+            start_data = compress_image(start_image_path)
+            end_data = compress_image(end_image_path)
             return start_data, end_data
 
-        start_data, end_data = await loop.run_in_executor(_fal_executor, read_images)
+        start_data, end_data = await loop.run_in_executor(_fal_executor, read_and_compress_images)
 
-        # Determine mime types
-        def get_mime_type(path: Path) -> str:
-            ext = path.suffix.lower()
-            return {
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".png": "image/png",
-                ".gif": "image/gif",
-                ".webp": "image/webp",
-            }.get(ext, "image/jpeg")
-
-        start_mime = get_mime_type(start_image_path)
-        end_mime = get_mime_type(end_image_path)
-
+        # Use JPEG mime type since we compressed to JPEG
         start_base64 = base64.b64encode(start_data).decode()
         end_base64 = base64.b64encode(end_data).decode()
 
-        start_url = f"data:{start_mime};base64,{start_base64}"
-        end_url = f"data:{end_mime};base64,{end_base64}"
+        start_url = f"data:image/jpeg;base64,{start_base64}"
+        end_url = f"data:image/jpeg;base64,{end_base64}"
 
         # Use Kling 2.6 which supports end_image_url
         model_id = self.MODELS["v2.6"]
@@ -207,11 +209,18 @@ class FalAIService:
                     "start_image_url": start_url,
                     "end_image_url": end_url,
                     "duration": "5" if duration <= 5 else "10",
-                    "aspect_ratio": "16:9",
                     "negative_prompt": "blur, distort, and low quality",
+                    "generate_audio": False,
                 },
             )
-            return handle.get()
+            try:
+                return handle.get()
+            except Exception as e:
+                # Log the full error details for debugging
+                logger.error("Transition API error: %s", e)
+                if hasattr(e, "response"):
+                    logger.error("Response body: %s", e.response.text if hasattr(e.response, "text") else e.response)
+                raise
 
         result = await loop.run_in_executor(_fal_executor, run_job)
 
