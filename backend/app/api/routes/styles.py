@@ -26,6 +26,7 @@ VALID_STYLES = {"ghibli", "lego", "minecraft", "simpsons"}
 
 class StyleRequest(BaseModel):
     style: str
+    custom_prompt: str | None = None
 
 
 class SelectVariantRequest(BaseModel):
@@ -320,13 +321,14 @@ async def regenerate_photo_style(
     photo.status = "styling"
     await db.commit()
 
-    # Start background task with project's custom prompt
+    # Start background task - use request's custom_prompt if provided, else project's
+    custom_prompt = style_request.custom_prompt if style_request.custom_prompt else project.style_prompt
     asyncio.create_task(
         process_style_transfer_for_photo(
             photo_id,
             style_request.style,
             save_as_variant=True,
-            custom_prompt=project.style_prompt,
+            custom_prompt=custom_prompt,
         )
     )
 

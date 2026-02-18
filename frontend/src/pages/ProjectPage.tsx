@@ -12,6 +12,13 @@ import ThemeToggle from "../components/common/ThemeToggle";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+const DEFAULT_STYLE_PROMPTS: Record<StyleType, string> = {
+  ghibli: "Restyle this image with Studio Ghibli style.",
+  lego: "Restyle this image with LEGO style.",
+  minecraft: "Restyle this image with Minecraft style.",
+  simpsons: "Restyle this image with The Simpsons style.",
+};
+
 const STYLES: { id: StyleType; label: string; icon: string }[] = [
   { id: "ghibli", label: "Ghibli", icon: "🏯" },
   { id: "lego", label: "Lego", icon: "🧱" },
@@ -71,7 +78,6 @@ export default function ProjectPage() {
   const [stylePrompt, setStylePrompt] = useState<string>("");
   const debouncedStylePrompt = useDebounce(stylePrompt, 1000);
   const lastSavedStylePromptRef = useRef<string>("");
-  const [showStylePrompt, setShowStylePrompt] = useState(false);
 
   // Project name editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -260,6 +266,17 @@ export default function ProjectPage() {
       setProject(projectRes.data);
       setPhotos(photosRes.data.items);
 
+      // Initialize style prompt from project or use default
+      const proj = projectRes.data;
+      if (proj.style_prompt) {
+        setStylePrompt(proj.style_prompt);
+        lastSavedStylePromptRef.current = proj.style_prompt;
+      } else if (proj.style) {
+        const defaultPrompt = DEFAULT_STYLE_PROMPTS[proj.style as StyleType];
+        setStylePrompt(defaultPrompt);
+        lastSavedStylePromptRef.current = defaultPrompt;
+      }
+
       // Find main export and latest ready export
       const allExports = exportsRes.data;
       const mainExp = allExports.find(e => e.is_main && e.status === "ready");
@@ -344,9 +361,19 @@ export default function ProjectPage() {
     // Update local state immediately for responsiveness
     setProject({ ...project, style });
 
+    // Pre-fill style prompt with default if empty or if switching to a new style
+    const defaultPrompt = DEFAULT_STYLE_PROMPTS[style];
+    if (!stylePrompt || stylePrompt === DEFAULT_STYLE_PROMPTS[project.style as StyleType]) {
+      setStylePrompt(defaultPrompt);
+      lastSavedStylePromptRef.current = defaultPrompt;
+    }
+
     // Save to backend
     try {
-      await api.put(`/projects/${projectId}`, { style });
+      await api.put(`/projects/${projectId}`, {
+        style,
+        style_prompt: stylePrompt || defaultPrompt
+      });
     } catch (error) {
       console.error("Failed to save style:", error);
     }
@@ -383,8 +410,9 @@ export default function ProjectPage() {
     }
   };
 
-  const handleRegeneratePhoto = async (photoId: string) => {
-    if (!project?.style) return;
+  const handleRegeneratePhoto = async (photoId: string, style?: StyleType, customPrompt?: string) => {
+    const styleToUse = style || project?.style;
+    if (!styleToUse) return;
 
     try {
       // Mark photo as styling
@@ -393,31 +421,47 @@ export default function ProjectPage() {
       );
       setLoadingVariants((prev) => ({ ...prev, [photoId]: true }));
 
-      await api.post(`/photos/${photoId}/regenerate`, { style: project.style });
+      await api.post(`/photos/${photoId}/regenerate`, {
+        style: styleToUse,
+        custom_prompt: customPrompt,
+      });
 
-      // Poll for completion with longer interval
+      // Poll for completion
+      let pollCount = 0;
+      const maxPolls = 60; // 5 minutes max (60 * 5s)
       const checkStatus = setInterval(async () => {
+        pollCount++;
+        if (pollCount > maxPolls) {
+          clearInterval(checkStatus);
+          setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
+          return;
+        }
         try {
           const response = await api.get(`/photos/${photoId}`);
           const photo = response.data;
           if (photo.status !== "styling") {
             clearInterval(checkStatus);
+            // Add cache-busting to styled_url to force image reload
+            const bustCache = (url: string | null) =>
+              url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : url;
+            const updatedPhoto = {
+              ...photo,
+              styled_url: bustCache(photo.styled_url),
+            };
             setPhotos((prev) =>
-              prev.map((p) => (p.id === photoId ? photo : p))
+              prev.map((p) => (p.id === photoId ? updatedPhoto : p))
             );
-            // Update selectedPhoto if it's the one being regenerated
             setSelectedPhoto((prev) =>
-              prev?.id === photoId ? photo : prev
+              prev?.id === photoId ? updatedPhoto : prev
             );
             setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
-            // Reload variants
             loadVariants(photoId);
           }
         } catch {
           clearInterval(checkStatus);
           setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
         }
-      }, 5000); // Poll every 5 seconds
+      }, 3000); // Poll every 3 seconds
     } catch (error) {
       console.error("Failed to regenerate photo:", error);
       setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
@@ -898,8 +942,10 @@ export default function ProjectPage() {
                   photos={photos}
                   onReorder={handleReorder}
                   onSelect={setSelectedPhoto}
+                  onRestyle={handleRegeneratePhoto}
                   selectedPhotoId={selectedPhoto?.id}
                   apiUrl={API_URL}
+                  currentStyle={project.style}
                 />
               </section>
             </div>
@@ -958,42 +1004,37 @@ export default function ProjectPage() {
                   ))}
                 </div>
 
-                {/* Custom Style Prompt */}
-                <div className="mb-4">
-                  <button
-                    onClick={() => setShowStylePrompt(!showStylePrompt)}
-                    className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                  >
-                    <svg
-                      className={`w-4 h-4 transition-transform ${showStylePrompt ? "rotate-90" : ""}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    Customize Style Prompt
-                    {stylePrompt && (
-                      <span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
-                        Custom
-                      </span>
-                    )}
-                  </button>
-                  {showStylePrompt && (
-                    <div className="mt-2">
-                      <textarea
-                        value={stylePrompt}
-                        onChange={(e) => setStylePrompt(e.target.value)}
-                        placeholder="Enter a custom prompt for style transfer, or leave empty to use the default prompt for the selected style..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                        rows={4}
-                      />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        Auto-saves as you type. Leave empty to use default style prompt.
-                      </p>
+                {/* Style Prompt - Always visible when style selected */}
+                {project.style && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Style Prompt
+                      </label>
+                      {stylePrompt !== DEFAULT_STYLE_PROMPTS[project.style] && (
+                        <button
+                          onClick={() => {
+                            setStylePrompt(DEFAULT_STYLE_PROMPTS[project.style as StyleType]);
+                          }}
+                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                        >
+                          Reset to default
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
+                    <textarea
+                      value={stylePrompt}
+                      onChange={(e) => setStylePrompt(e.target.value)}
+                      placeholder="Describe how you want the style to be applied..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                      rows={4}
+                      disabled={isProcessing}
+                    />
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Customize how the AI applies the style. Auto-saves as you type.
+                    </p>
+                  </div>
+                )}
 
                 {/* Generate Button */}
                 <button

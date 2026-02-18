@@ -39,9 +39,10 @@ uv run pytest -k "test_name"      # Run tests matching pattern
 uv run pytest --cov=app           # Run with coverage
 ```
 
-### Linting
+### Linting & Formatting
 ```bash
 cd backend && uv run ruff check . # Python linting (ruff)
+cd backend && uv run ruff format . # Python formatting (ruff)
 cd frontend && npm run lint       # TypeScript/React linting (eslint)
 ```
 
@@ -61,13 +62,20 @@ MomentLoop transforms photos into AI-styled animated videos through a pipeline:
 
 All services use `SemaphoreManager` for concurrency control to avoid API rate limits.
 
-### Data Flow
+### Database Models
 
 ```
-User → Project → Photo → StyledVariant (multiple style options)
-                      → Video (scene/transition clips)
-               → Export (final stitched video)
+User (1) ──── (N) Project (1) ──┬── (N) Photo (1) ──── (N) StyledVariant
+                                ├── (N) Video
+                                └── (N) Export
 ```
+
+- **User**: Authentication via Google OAuth, owns projects
+- **Project**: Container with style settings and overall status
+- **Photo**: Original image with styled path, animation prompt, and position for ordering
+- **StyledVariant**: Multiple style variations per photo for user comparison
+- **Video**: Generated clips (scene=5s or transition=3s), references photos
+- **Export**: Final stitched video with status tracking
 
 ### Key Patterns
 
@@ -89,3 +97,12 @@ Backend uses Ruff for linting (line-length=100, Python 3.11+). See `backend/pypr
 Frontend uses ESLint with TypeScript and React hooks plugins. See `frontend/package.json`.
 
 Environment variables in `.env` - see `.env.example` for required keys (Google OAuth, Gemini API, fal.ai API).
+
+Database uses `postgresql+asyncpg://` connection string for async SQLAlchemy.
+
+### Testing Setup
+
+Tests use `pytest-asyncio` with `asyncio_mode = "auto"`. The `conftest.py` provides:
+- Async test client via `httpx.AsyncClient`
+- In-memory SQLite for isolated database tests
+- Fixtures for authenticated users and test projects
