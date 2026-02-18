@@ -26,7 +26,9 @@ export default function LoginPage() {
   }, [isAuthenticated, navigate]);
 
   const handleGoogleLogin = () => {
-    window.location.href = `${apiUrl}/api/auth/google`;
+    const origin = encodeURIComponent(window.location.origin);
+    // Use relative URL so it goes through the Vite proxy (works with ngrok too)
+    window.location.href = `/api/auth/google?origin=${origin}`;
   };
 
   return (

@@ -32,8 +32,14 @@ PHOTOS_SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly
 
 @router.get("/google")
 @limiter.limit(settings.rate_limit_auth)
-async def google_login(request: Request):
+async def google_login(request: Request, origin: str | None = None):
     """Redirect to Google OAuth consent screen."""
+    # Use the origin passed by the frontend, or fall back to Referer/config
+    frontend_origin = (
+        origin
+        or request.headers.get("referer", "").rstrip("/").split("/login")[0]
+        or settings.cors_origins[0]
+    )
     params = {
         "client_id": settings.google_client_id,
         "redirect_uri": settings.google_redirect_uri,
@@ -41,6 +47,7 @@ async def google_login(request: Request):
         "scope": LOGIN_SCOPES,
         "access_type": "offline",
         "prompt": "consent",
+        "state": frontend_origin,
     }
     url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
     return RedirectResponse(url=url)
@@ -66,7 +73,12 @@ async def google_photos_auth(request: Request, current_user: User = Depends(get_
 
 @router.get("/callback")
 @limiter.limit(settings.rate_limit_auth)
-async def google_callback(request: Request, code: str, db: AsyncSession = Depends(get_db)):
+async def google_callback(
+    request: Request,
+    code: str,
+    state: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
     """Handle Google OAuth callback."""
     # Exchange code for tokens
     async with httpx.AsyncClient() as client:
@@ -147,8 +159,8 @@ async def google_callback(request: Request, code: str, db: AsyncSession = Depend
     # Create JWT token
     jwt_token = create_access_token(data={"sub": str(user.id)})
 
-    # Redirect to frontend with token
-    frontend_url = settings.cors_origins[0] if settings.cors_origins else "http://localhost:5173"
+    # Redirect to frontend - state carries the frontend origin URL
+    frontend_url = state or settings.cors_origins[0] if settings.cors_origins else "http://localhost:5173"
     return RedirectResponse(url=f"{frontend_url}/login?token={jwt_token}")
 
 
