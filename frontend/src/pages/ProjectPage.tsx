@@ -1429,19 +1429,19 @@ export default function ProjectPage() {
           /* Compare View */
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Original vs Styled Comparison
               </h2>
               {project.style && (
-                <span className="px-3 py-1 text-sm rounded-full bg-purple-100 text-purple-700">
+                <span className="px-3 py-1 text-sm rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
                   {project.style.charAt(0).toUpperCase() + project.style.slice(1)} Style
                 </span>
               )}
             </div>
 
             {photos.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-                <p className="text-gray-500">No photos uploaded yet</p>
+              <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+                <p className="text-gray-500 dark:text-gray-400">No photos uploaded yet</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -1455,20 +1455,20 @@ export default function ProjectPage() {
                   return (
                     <div
                       key={photo.id}
-                      className="bg-white rounded-xl shadow-sm p-6"
+                      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
                     >
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-medium text-gray-900">
+                        <h3 className="font-medium text-gray-900 dark:text-white">
                           Photo {index + 1}
                         </h3>
                         <div className="flex items-center gap-3">
                           <span
                             className={`px-2 py-1 text-xs rounded-full ${
                               photo.status === "styled"
-                                ? "bg-blue-100 text-blue-700"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
                                 : photo.status === "styling"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-gray-100 text-gray-700"
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300"
+                                : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                             }`}
                           >
                             {photo.status}
@@ -1497,11 +1497,11 @@ export default function ProjectPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Original */}
                         <div>
-                          <p className="text-sm text-gray-500 mb-2 text-center">
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 text-center">
                             Original
                           </p>
                           <div
-                            className="aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
+                            className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
                             onClick={() =>
                               setLightboxImage({
                                 url: `${API_URL}${photo.original_url}`,
@@ -1519,10 +1519,10 @@ export default function ProjectPage() {
 
                         {/* Styled */}
                         <div>
-                          <p className="text-sm text-gray-500 mb-2 text-center">
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 text-center">
                             Styled (Selected)
                           </p>
-                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                          <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
                             {photo.styled_url ? (
                               <img
                                 src={`${API_URL}${photo.styled_url}`}
@@ -1539,7 +1539,7 @@ export default function ProjectPage() {
                               <div className="w-full h-full flex items-center justify-center">
                                 <div className="text-center">
                                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
-                                  <p className="text-sm text-gray-500">
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
                                     <GeneratingTimer label="Generating" startTime={stylingStartTimes.current[photo.id]} />
                                   </p>
                                 </div>
@@ -1558,7 +1558,7 @@ export default function ProjectPage() {
                       {/* Variants Gallery */}
                       {variants.length > 1 && (
                         <div className="mt-4">
-                          <p className="text-sm text-gray-600 mb-2">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                             All Variants ({variants.length}) - Click to select:
                           </p>
                           <div className="flex gap-2 overflow-x-auto pb-2">
@@ -1568,8 +1568,8 @@ export default function ProjectPage() {
                                 onClick={() => handleSelectVariant(photo.id, variant.id)}
                                 className={`flex-shrink-0 relative rounded-lg overflow-hidden border-2 transition-all ${
                                   variant.is_selected
-                                    ? "border-primary-500 ring-2 ring-primary-200"
-                                    : "border-gray-200 hover:border-gray-300"
+                                    ? "border-primary-500 ring-2 ring-primary-200 dark:ring-primary-800"
+                                    : "border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500"
                                 }`}
                               >
                                 <img
@@ -1600,19 +1600,19 @@ export default function ProjectPage() {
 
                       {/* Video Generation Section */}
                       {(photo.styled_url || photo.original_url) && (
-                        <div className="mt-6 pt-4 border-t border-gray-200">
+                        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                           <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium text-gray-900">Animation Video</h4>
+                            <h4 className="font-medium text-gray-900 dark:text-white">Animation Video</h4>
                             {video && (
                               <span
                                 className={`px-2 py-1 text-xs rounded-full ${
                                   video.status === "ready"
-                                    ? "bg-green-100 text-green-700"
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
                                     : video.status === "generating"
-                                    ? "bg-yellow-100 text-yellow-700"
+                                    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300"
                                     : video.status === "failed"
-                                    ? "bg-red-100 text-red-700"
-                                    : "bg-gray-100 text-gray-700"
+                                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                                    : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                                 }`}
                               >
                                 {video.status}
@@ -1630,21 +1630,21 @@ export default function ProjectPage() {
                               />
                             </div>
                           ) : isGeneratingVideo || video?.status === "generating" ? (
-                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center mb-3">
+                            <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-3">
                               <div className="text-center">
                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-3"></div>
-                                <p className="text-sm text-gray-600">
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
                                   <GeneratingTimer label="Generating video" />
                                 </p>
-                                <p className="text-xs text-gray-400 mt-1">
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                   Using Kling AI
                                 </p>
                               </div>
                             </div>
                           ) : video?.status === "failed" ? (
-                            <div className="aspect-video bg-red-50 rounded-lg flex items-center justify-center mb-3">
+                            <div className="aspect-video bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center mb-3">
                               <div className="text-center">
-                                <p className="text-sm text-red-600 mb-2">
+                                <p className="text-sm text-red-600 dark:text-red-400 mb-2">
                                   Video generation failed
                                 </p>
                                 <button
@@ -1659,8 +1659,8 @@ export default function ProjectPage() {
 
                           {/* Animation Prompt */}
                           <div className="mb-3">
-                            <p className="text-xs text-gray-500 mb-1">Animation Prompt:</p>
-                            <p className="text-sm text-gray-700 bg-gray-50 rounded p-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Animation Prompt:</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded p-2">
                               {photo.animation_prompt || (
                                 <span className="text-gray-400 italic">
                                   No animation prompt set. Add one in Grid view.
@@ -1672,7 +1672,7 @@ export default function ProjectPage() {
                           {/* Video Variants Gallery */}
                           {videos.filter(v => v.status === "ready").length > 1 && (
                             <div className="mb-3">
-                              <p className="text-xs text-gray-600 mb-2">
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                                 All Videos ({videos.filter(v => v.status === "ready").length}) - Click to select:
                               </p>
                               <div className="flex gap-2 overflow-x-auto pb-2">
@@ -1682,8 +1682,8 @@ export default function ProjectPage() {
                                     onClick={() => handleSelectVideo(photo.id, v.id)}
                                     className={`flex-shrink-0 relative rounded-lg overflow-hidden border-2 transition-all ${
                                       v.is_selected
-                                        ? "border-primary-500 ring-2 ring-primary-200"
-                                        : "border-gray-200 hover:border-gray-300"
+                                        ? "border-primary-500 ring-2 ring-primary-200 dark:ring-primary-800"
+                                        : "border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500"
                                     }`}
                                   >
                                     <video
@@ -1724,7 +1724,7 @@ export default function ProjectPage() {
                               !photo.animation_prompt ||
                               isGeneratingVideo ||
                               video?.status === "generating"
-                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500"
                                 : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
                             }`}
                           >
@@ -1741,7 +1741,7 @@ export default function ProjectPage() {
                           </button>
 
                           {!photo.animation_prompt && (
-                            <p className="text-xs text-gray-400 mt-2 text-center">
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
                               Add an animation prompt in Grid view to generate a video
                             </p>
                           )}
