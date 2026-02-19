@@ -1,0 +1,23 @@
+# MomentLoop Azure Developer CLI manifest
+name: momentloop
+metadata:
+  template: momentloop
+
+services:
+  backend:
+    host: containerapp
+    language: python
+    project: ./backend
+    docker:
+      path: ./backend/Dockerfile
+
+  frontend:
+    host: containerapp
+    language: js
+    project: ./frontend
+    docker:
+      path: ./frontend/Dockerfile.prod
+
+infra:
+  provider: bicep
+  path: ./infra
