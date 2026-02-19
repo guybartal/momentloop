@@ -17,11 +17,12 @@ param acrLoginServer string
 // Environment variables
 param databaseUrl string
 param storageAccountName string
-param keyVaultName string
 param corsOrigins string = ''
 
-// Key Vault secret URIs
-param keyVaultUri string
+// Key Vault name (URI is constructed deterministically)
+param keyVaultName string
+
+var keyVaultUri = 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/'
 
 resource backend 'Microsoft.App/containerApps@2025-01-01' = {
   name: name

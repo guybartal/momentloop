@@ -127,7 +127,9 @@ module containerAppsEnv 'modules/container-apps-env.bicep' = {
   }
 }
 
-// 4. Backend Container App (deployed first to get Managed Identity principal)
+// 4. Backend Container App
+//    Uses Key Vault name (not output) to construct URI deterministically,
+//    breaking the cycle: backend <-> keyVault
 module backend 'modules/container-app-backend.bicep' = {
   name: 'backend'
   params: {
@@ -135,7 +137,9 @@ module backend 'modules/container-app-backend.bicep' = {
     location: location
     tags: tags
     environmentId: containerAppsEnv.outputs.id
-    containerImage: !empty(backendImage) ? backendImage : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+    containerImage: !empty(backendImage)
+      ? backendImage
+      : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
     cpu: backendCpu
     memory: backendMemory
     minReplicas: backendMinReplicas
@@ -144,7 +148,6 @@ module backend 'modules/container-app-backend.bicep' = {
     databaseUrl: 'postgresql+asyncpg://momentloopadmin:${postgresAdminPassword}@${names.postgres}.postgres.database.azure.com:5432/momentloop?ssl=require'
     storageAccountName: names.storageAccount
     keyVaultName: names.keyVault
-    keyVaultUri: keyVault.outputs.uri
     corsOrigins: corsOrigins
   }
 }
@@ -157,7 +160,9 @@ module frontend 'modules/container-app-frontend.bicep' = {
     location: location
     tags: tags
     environmentId: containerAppsEnv.outputs.id
-    containerImage: !empty(frontendImage) ? frontendImage : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+    containerImage: !empty(frontendImage)
+      ? frontendImage
+      : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
     cpu: frontendCpu
     memory: frontendMemory
     minReplicas: frontendMinReplicas
@@ -179,11 +184,10 @@ module postgres 'modules/postgresql.bicep' = {
     storageSizeGB: postgresStorageSizeGB
     haMode: postgresHaMode
     administratorPassword: postgresAdminPassword
-    backendPrincipalId: backend.outputs.principalId
   }
 }
 
-// 7. Storage Account
+// 7. Storage Account (depends on backend for RBAC principalId)
 module storage 'modules/storage.bicep' = {
   name: 'storage'
   params: {
@@ -195,7 +199,7 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
-// 8. Key Vault
+// 8. Key Vault (depends on backend for RBAC principalId)
 module keyVault 'modules/key-vault.bicep' = {
   name: 'keyVault'
   params: {
@@ -212,8 +216,9 @@ module keyVault 'modules/key-vault.bicep' = {
 }
 
 // 9. RBAC: Backend -> ACR (AcrPull)
+//    Use deterministic names for guid() to avoid BCP120 errors
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.outputs.id, backend.outputs.principalId, 'AcrPull')
+  name: guid(resourceGroup().id, names.backendApp, 'AcrPull')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId(
@@ -227,7 +232,7 @@ resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 // RBAC: Frontend -> ACR (AcrPull)
 resource acrPullRoleFrontend 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.outputs.id, frontend.outputs.principalId, 'AcrPull')
+  name: guid(resourceGroup().id, names.frontendApp, 'AcrPull')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId(

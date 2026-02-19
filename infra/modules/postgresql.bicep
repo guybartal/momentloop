@@ -11,9 +11,6 @@ param haMode string = 'Disabled'
 param version string = '16'
 param databaseName string = 'momentloop'
 
-// Managed Identity for Entra authentication
-param backendPrincipalId string
-
 // Admin - used for initial setup only
 param administratorLogin string = 'momentloopadmin'
 @secure()
