@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.config import get_settings
 from app.core.database import Base
+from app.models.job import Job  # noqa: F401
 
 # Import all models to ensure they are registered with Base.metadata
 from app.models.photo import Photo  # noqa: F401
@@ -15,7 +16,6 @@ from app.models.project import Project  # noqa: F401
 from app.models.styled_variant import StyledVariant  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.video import Export, Video  # noqa: F401
-from app.models.job import Job  # noqa: F401
 
 # this is the Alembic Config object
 config = context.config

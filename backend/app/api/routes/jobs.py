@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -76,7 +76,7 @@ async def create_job(
         job_type=job_data.job_type,
         description=job_data.description,
         status="running",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
     db.add(job)
     await db.commit()
@@ -104,7 +104,7 @@ async def complete_job(
         )
 
     job.status = "completed"
-    job.completed_at = datetime.now(timezone.utc)
+    job.completed_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
 
@@ -132,7 +132,7 @@ async def fail_job(
 
     job.status = "failed"
     job.error = error
-    job.completed_at = datetime.now(timezone.utc)
+    job.completed_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
 

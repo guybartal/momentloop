@@ -8,7 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import auth, export, google_photos, jobs, photos, projects, styles, videos, websocket
+from app.api.routes import (
+    auth,
+    export,
+    google_photos,
+    jobs,
+    photos,
+    projects,
+    styles,
+    videos,
+    websocket,
+)
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
