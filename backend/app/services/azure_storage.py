@@ -6,7 +6,6 @@ import tempfile
 import uuid
 from pathlib import Path
 
-import aiofiles
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 

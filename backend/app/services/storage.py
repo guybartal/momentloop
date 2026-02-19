@@ -14,48 +14,40 @@ class StorageBackend(ABC):
     """Abstract base class for storage backends."""
 
     @abstractmethod
-    async def save_upload(self, file_content: bytes, filename: str, project_id: uuid.UUID) -> str:
-        ...
+    async def save_upload(
+        self, file_content: bytes, filename: str, project_id: uuid.UUID
+    ) -> str: ...
 
     @abstractmethod
-    async def save_styled(self, file_content: bytes, original_path: str) -> str:
-        ...
+    async def save_styled(self, file_content: bytes, original_path: str) -> str: ...
 
     @abstractmethod
     async def save_video(
         self, file_content: bytes, project_id: uuid.UUID, video_type: str = "scene"
-    ) -> str:
-        ...
+    ) -> str: ...
 
     @abstractmethod
-    async def save_export(self, file_content: bytes, project_id: uuid.UUID) -> str:
-        ...
+    async def save_export(self, file_content: bytes, project_id: uuid.UUID) -> str: ...
 
     @abstractmethod
     async def save_thumbnail(
         self, file_content: bytes, project_id: uuid.UUID, export_id: uuid.UUID
-    ) -> str:
-        ...
+    ) -> str: ...
 
     @abstractmethod
-    def get_full_path(self, relative_path: str) -> Path:
-        ...
+    def get_full_path(self, relative_path: str) -> Path: ...
 
     @abstractmethod
-    def get_url(self, relative_path: str) -> str:
-        ...
+    def get_url(self, relative_path: str) -> str: ...
 
     @abstractmethod
-    async def delete_file(self, relative_path: str) -> bool:
-        ...
+    async def delete_file(self, relative_path: str) -> bool: ...
 
     @abstractmethod
-    async def delete_project_files(self, project_id: uuid.UUID) -> None:
-        ...
+    async def delete_project_files(self, project_id: uuid.UUID) -> None: ...
 
     @abstractmethod
-    async def read_file(self, relative_path: str) -> bytes:
-        ...
+    async def read_file(self, relative_path: str) -> bytes: ...
 
 
 class LocalStorageBackend(StorageBackend):
@@ -177,6 +169,7 @@ def create_storage_service() -> StorageBackend:
     """Factory: create the right storage backend based on config."""
     if settings.storage_backend == "azure":
         from app.services.azure_storage import AzureBlobStorageBackend
+
         return AzureBlobStorageBackend()
     return LocalStorageBackend()
 

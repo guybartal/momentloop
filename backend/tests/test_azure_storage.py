@@ -2,7 +2,7 @@
 
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -44,6 +44,7 @@ class TestAzureBlobStorageBackend:
         mock_settings_obj.storage_path = Path("/tmp/momentloop-test")
         with patch("app.services.azure_storage.settings", mock_settings_obj):
             from app.services.azure_storage import AzureBlobStorageBackend
+
             return AzureBlobStorageBackend()
 
     async def test_save_upload_uploads_to_blob(self, mock_blob_service, mock_default_credential):

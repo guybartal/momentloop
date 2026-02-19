@@ -1,8 +1,6 @@
 """Tests for storage service dual-mode backend."""
 
 import uuid
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +18,7 @@ class TestLocalStorageBackend:
 
     async def test_save_upload(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -36,6 +35,7 @@ class TestLocalStorageBackend:
 
     async def test_save_styled(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         path = await backend.save_styled(b"styled data", "uploads/proj123/photo.jpg")
@@ -46,6 +46,7 @@ class TestLocalStorageBackend:
 
     async def test_save_video(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -57,6 +58,7 @@ class TestLocalStorageBackend:
 
     async def test_save_export(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -67,6 +69,7 @@ class TestLocalStorageBackend:
 
     async def test_save_thumbnail(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -78,6 +81,7 @@ class TestLocalStorageBackend:
 
     async def test_get_full_path(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -89,6 +93,7 @@ class TestLocalStorageBackend:
 
     async def test_get_full_path_rejects_traversal(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         with pytest.raises(ValueError, match="path traversal"):
@@ -96,6 +101,7 @@ class TestLocalStorageBackend:
 
     async def test_get_url_local(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         url = backend.get_url("uploads/proj/photo.jpg")
@@ -103,6 +109,7 @@ class TestLocalStorageBackend:
 
     async def test_delete_file(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -113,12 +120,14 @@ class TestLocalStorageBackend:
 
     async def test_delete_file_nonexistent(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         assert await backend.delete_file("nonexistent/file.jpg") is False
 
     async def test_delete_project_files(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -132,6 +141,7 @@ class TestLocalStorageBackend:
 
     async def test_read_file(self, temp_storage):
         from app.services.storage import LocalStorageBackend
+
         backend = LocalStorageBackend(temp_storage)
 
         project_id = uuid.uuid4()
@@ -145,7 +155,7 @@ class TestStorageServiceFactory:
     """Test that the correct backend is created based on config."""
 
     def test_local_backend_created_by_default(self):
-        from app.services.storage import storage_service
-        from app.services.storage import LocalStorageBackend
+        from app.services.storage import LocalStorageBackend, storage_service
+
         # Default config should create local backend
         assert isinstance(storage_service, LocalStorageBackend)
