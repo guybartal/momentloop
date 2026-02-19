@@ -929,19 +929,12 @@ export default function ProjectPage() {
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     Photos ({photos.length})
                   </h2>
-                  {selectedPhoto && (
-                    <button
-                      onClick={() => handleDeletePhoto(selectedPhoto.id)}
-                      className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm"
-                    >
-                      Delete Selected
-                    </button>
-                  )}
                 </div>
                 <PhotoGallery
                   photos={photos}
                   onReorder={handleReorder}
                   onSelect={setSelectedPhoto}
+                  onDelete={handleDeletePhoto}
                   onRestyle={handleRegeneratePhoto}
                   selectedPhotoId={selectedPhoto?.id}
                   apiUrl={API_URL}
