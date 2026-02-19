@@ -1,0 +1,9 @@
+{
+  "Microsoft.App/containerApps": "ca-",
+  "Microsoft.App/managedEnvironments": "cae-",
+  "Microsoft.ContainerRegistry/registries": "cr",
+  "Microsoft.DBforPostgreSQL/flexibleServers": "psql-",
+  "Microsoft.KeyVault/vaults": "kv-",
+  "Microsoft.OperationalInsights/workspaces": "log-",
+  "Microsoft.Storage/storageAccounts": "st"
+}
