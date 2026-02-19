@@ -58,6 +58,7 @@ storage/uploads/*
 storage/styled/*
 storage/videos/*
 storage/exports/*
+storage/thumbnails/*
 !storage/*/.gitkeep
 
 # Logs
