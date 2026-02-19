@@ -77,12 +77,13 @@ param corsOrigins string = ''
 // Resource naming
 // ============================================================
 
-var resourceToken = toLower(uniqueString(resourceGroup().id, environmentName))
+// Short unique suffix for globally-unique names (ACR, Storage)
+var uniqueSuffix = toLower(take(uniqueString(resourceGroup().id, environmentName), 6))
 
 var names = {
   logAnalytics: 'log-${environmentName}'
-  acr: 'cr${resourceToken}'
-  storageAccount: 'st${resourceToken}'
+  acr: 'cr${environmentName}${uniqueSuffix}'
+  storageAccount: 'st${environmentName}${uniqueSuffix}'
   keyVault: 'kv-${environmentName}'
   postgres: 'psql-${environmentName}'
   containerAppsEnv: 'cae-${environmentName}'
