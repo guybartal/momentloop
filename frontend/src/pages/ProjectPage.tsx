@@ -1070,13 +1070,13 @@ export default function ProjectPage() {
 
               {/* Selected Photo Details */}
               {selectedPhoto && (
-                <section className="bg-white rounded-xl shadow-sm p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                     Photo Details
                   </h2>
                   <div className="space-y-4">
                     <div
-                      className="aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
+                      className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
                       onClick={() =>
                         setLightboxImage({
                           url: `${API_URL}${selectedPhoto.styled_url || selectedPhoto.original_url}`,
@@ -1094,12 +1094,12 @@ export default function ProjectPage() {
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Animation Prompt
                         </label>
                         {selectedPhoto.prompt_generation_status === "generating" || selectedPhoto.prompt_generation_status === "pending" ? (
-                          <span className="text-xs text-purple-600 flex items-center gap-1">
-                            <div className="animate-spin rounded-full h-3 w-3 border-b border-purple-600"></div>
+                          <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-purple-600 dark:border-purple-400"></div>
                             Generating...
                           </span>
                         ) : selectedPhoto.prompt_generation_status === "failed" ? (
@@ -1123,14 +1123,14 @@ export default function ProjectPage() {
                       </div>
 
                       {selectedPhoto.prompt_generation_status === "generating" || selectedPhoto.prompt_generation_status === "pending" ? (
-                        <div className="w-full px-3 py-4 border border-gray-200 rounded-lg bg-gray-50 text-center">
-                          <div className="animate-pulse text-sm text-gray-500">
+                        <div className="w-full px-3 py-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-center">
+                          <div className="animate-pulse text-sm text-gray-500 dark:text-gray-400">
                             AI is analyzing your image and generating a video prompt with subject actions and camera movements...
                           </div>
                         </div>
                       ) : selectedPhoto.prompt_generation_status === "failed" ? (
-                        <div className="w-full px-3 py-4 border border-red-200 rounded-lg bg-red-50 text-center">
-                          <div className="text-sm text-red-600">
+                        <div className="w-full px-3 py-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20 text-center">
+                          <div className="text-sm text-red-600 dark:text-red-400">
                             Failed to generate prompt. Click "Retry" to try again.
                           </div>
                         </div>
@@ -1140,17 +1140,17 @@ export default function ProjectPage() {
                             value={animationPrompt}
                             onChange={(e) => setAnimationPrompt(e.target.value)}
                             placeholder="Describe how this photo should animate..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 dark:text-gray-100"
                             rows={3}
                           />
-                          <p className="text-xs text-gray-400 mt-1">Auto-saves as you type</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Auto-saves as you type</p>
                         </>
                       )}
 
                       {/* Regenerate with feedback */}
                       {showPromptFeedback && selectedPhoto.prompt_generation_status === "completed" && (
-                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             What would you like to change? (optional)
                           </label>
                           <input
@@ -1158,7 +1158,7 @@ export default function ProjectPage() {
                             value={promptFeedback}
                             onChange={(e) => setPromptFeedback(e.target.value)}
                             placeholder="e.g., more camera movement, slower action..."
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-gray-600 dark:text-gray-100"
                           />
                           <div className="flex gap-2 mt-2">
                             <button
@@ -1172,7 +1172,7 @@ export default function ProjectPage() {
                                 setShowPromptFeedback(false);
                                 setPromptFeedback("");
                               }}
-                              className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
+                              className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                             >
                               Cancel
                             </button>
@@ -1184,12 +1184,12 @@ export default function ProjectPage() {
                       <span
                         className={`px-2 py-1 text-xs rounded-full ${
                           selectedPhoto.status === "ready"
-                            ? "bg-green-100 text-green-700"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                             : selectedPhoto.status === "styled"
-                            ? "bg-blue-100 text-blue-700"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
                             : selectedPhoto.status === "styling"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
+                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                            : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                         }`}
                       >
                         {selectedPhoto.status}
@@ -1216,8 +1216,8 @@ export default function ProjectPage() {
 
                     {/* Generate Style Prompt - show when no style selected */}
                     {!project.style && (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-700">
+                      <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
                           Select a style above to generate styled images
                         </p>
                       </div>
@@ -1225,19 +1225,19 @@ export default function ProjectPage() {
 
                     {/* Video Generation Section */}
                     {selectedPhoto.styled_url && (
-                      <div className="pt-4 border-t border-gray-200">
+                      <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-sm font-medium text-gray-900">Animation Video</h3>
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Animation Video</h3>
                           {getSelectedVideo(selectedPhoto.id) && (
                             <span
                               className={`px-2 py-1 text-xs rounded-full ${
                                 getSelectedVideo(selectedPhoto.id)?.status === "ready"
-                                  ? "bg-green-100 text-green-700"
+                                  ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                                   : getSelectedVideo(selectedPhoto.id)?.status === "generating"
-                                  ? "bg-yellow-100 text-yellow-700"
+                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
                                   : getSelectedVideo(selectedPhoto.id)?.status === "failed"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-gray-100 text-gray-700"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                                  : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                               }`}
                             >
                               {getSelectedVideo(selectedPhoto.id)?.status}
@@ -1260,10 +1260,10 @@ export default function ProjectPage() {
                         {/* Generating State */}
                         {(generatingVideos[selectedPhoto.id] ||
                           getSelectedVideo(selectedPhoto.id)?.status === "generating") && (
-                          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center mb-3">
+                          <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-3">
                             <div className="text-center">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 <GeneratingTimer label="Generating video" />
                               </p>
                             </div>
@@ -1273,7 +1273,7 @@ export default function ProjectPage() {
                         {/* Video Variants Gallery */}
                         {(photoVideos[selectedPhoto.id]?.length || 0) > 1 && (
                           <div className="mb-3">
-                            <p className="text-xs text-gray-600 mb-2">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                               All Videos ({photoVideos[selectedPhoto.id]?.length}) - Click to select:
                             </p>
                             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -1284,7 +1284,7 @@ export default function ProjectPage() {
                                   className={`flex-shrink-0 relative rounded-lg overflow-hidden border-2 transition-all ${
                                     video.is_selected
                                       ? "border-primary-500 ring-2 ring-primary-200"
-                                      : "border-gray-200 hover:border-gray-300"
+                                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
                                   }`}
                                 >
                                   <video
@@ -1325,7 +1325,7 @@ export default function ProjectPage() {
                             !animationPrompt ||
                             generatingVideos[selectedPhoto.id] ||
                             getSelectedVideo(selectedPhoto.id)?.status === "generating"
-                              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                              ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                               : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
                           }`}
                         >
@@ -1343,7 +1343,7 @@ export default function ProjectPage() {
                         </button>
 
                         {!animationPrompt && (
-                          <p className="text-xs text-gray-400 mt-2 text-center">
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
                             Add an animation prompt above first
                           </p>
                         )}
