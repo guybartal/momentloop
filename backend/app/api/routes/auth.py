@@ -160,7 +160,9 @@ async def google_callback(
     jwt_token = create_access_token(data={"sub": str(user.id)})
 
     # Redirect to frontend - state carries the frontend origin URL
-    frontend_url = state or settings.cors_origins[0] if settings.cors_origins else "http://localhost:5173"
+    frontend_url = (
+        state or settings.cors_origins[0] if settings.cors_origins else "http://localhost:5173"
+    )
     return RedirectResponse(url=f"{frontend_url}/login?token={jwt_token}")
 
 

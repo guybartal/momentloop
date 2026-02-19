@@ -105,6 +105,7 @@ async def health_check():
 if settings.storage_backend == "azure":
     # Azure mode: use proxy route to stream from Blob Storage
     from app.api.routes import storage_proxy
+
     app.include_router(storage_proxy.router, prefix="/api", tags=["Storage"])
 else:
     # Local mode: serve files directly from disk (current behavior)

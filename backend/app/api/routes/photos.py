@@ -265,9 +265,7 @@ async def generate_image_from_text(
         )
 
     # Save the generated image
-    relative_path = await storage_service.save_upload(
-        image_bytes, "generated.png", project_id
-    )
+    relative_path = await storage_service.save_upload(image_bytes, "generated.png", project_id)
 
     # Get current max position
     result = await db.execute(

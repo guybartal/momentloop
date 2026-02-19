@@ -92,9 +92,7 @@ async def complete_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a job as completed."""
-    result = await db.execute(
-        select(Job).where(Job.id == job_id, Job.user_id == current_user.id)
-    )
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == current_user.id))
     job = result.scalar_one_or_none()
 
     if not job:
@@ -119,9 +117,7 @@ async def fail_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a job as failed."""
-    result = await db.execute(
-        select(Job).where(Job.id == job_id, Job.user_id == current_user.id)
-    )
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == current_user.id))
     job = result.scalar_one_or_none()
 
     if not job:

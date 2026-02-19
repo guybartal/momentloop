@@ -82,6 +82,7 @@ class ImagenService:
 
                 # Save to buffer
                 from io import BytesIO
+
                 buffer = BytesIO()
                 img.save(buffer, format="JPEG", quality=95)
                 return buffer.getvalue(), width, height

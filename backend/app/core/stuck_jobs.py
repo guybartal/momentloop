@@ -116,9 +116,7 @@ async def resume_stuck_style_transfers():
                     photo.status = "uploaded"
                     continue
 
-                logger.info(
-                    "Resuming style transfer for photo %s (style=%s)", photo.id, style
-                )
+                logger.info("Resuming style transfer for photo %s (style=%s)", photo.id, style)
                 asyncio.create_task(
                     process_style_transfer_for_photo(
                         photo.id,
