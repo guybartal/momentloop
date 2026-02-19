@@ -15,6 +15,7 @@ from app.models.project import Project  # noqa: F401
 from app.models.styled_variant import StyledVariant  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.video import Export, Video  # noqa: F401
+from app.models.job import Job  # noqa: F401
 
 # this is the Alembic Config object
 config = context.config

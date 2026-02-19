@@ -5,6 +5,7 @@ import { useAuthStore } from "../store/authStore";
 import type { Project } from "../types";
 import api from "../services/api";
 import ThemeToggle from "../components/common/ThemeToggle";
+import JobQueuePanel from "../components/common/JobQueuePanel";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -78,6 +79,7 @@ export default function DashboardPage() {
                 <span className="text-gray-700 dark:text-gray-300">{user.name || user.email}</span>
               </div>
             )}
+            <JobQueuePanel />
             <ThemeToggle />
             <button
               onClick={logout}

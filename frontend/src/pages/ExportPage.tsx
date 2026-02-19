@@ -5,6 +5,8 @@ import type { Project, Video, Export } from "../types";
 import api from "../services/api";
 import ExportProgressStepper from "../components/export/ExportProgressStepper";
 import ThemeToggle from "../components/common/ThemeToggle";
+import JobQueuePanel from "../components/common/JobQueuePanel";
+import { useJobStore } from "../store/jobStore";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -74,6 +76,10 @@ export default function ExportPage() {
   const [editedName, setEditedName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Job queue tracking
+  const exportJobIdRef = useRef<string | null>(null);
+  const { addJob, completeJob, failJob } = useJobStore();
+
   useEffect(() => {
     if (projectId) {
       loadData();
@@ -94,7 +100,19 @@ export default function ExportPage() {
         if (response.data.status === "ready" || response.data.status === "failed") {
           // Refresh export history
           loadExportHistory();
-          toast.success(response.data.status === "ready" ? "Export completed!" : "Export failed");
+          if (response.data.status === "ready") {
+            if (exportJobIdRef.current) {
+              completeJob(exportJobIdRef.current);
+              exportJobIdRef.current = null;
+            }
+            toast.success("Export completed!");
+          } else {
+            if (exportJobIdRef.current) {
+              failJob(exportJobIdRef.current, "Export failed");
+              exportJobIdRef.current = null;
+            }
+            toast.error("Export failed");
+          }
           clearInterval(interval);
         }
       } catch (error) {
@@ -145,6 +163,12 @@ export default function ExportPage() {
         include_transitions: true,
       });
       setCurrentExport(response.data);
+      exportJobIdRef.current = addJob({
+        type: "export",
+        description: `Exporting final video`,
+        projectId: projectId!,
+        projectName: project?.name,
+      });
       toast.success("Export started");
     } catch (error) {
       console.error("Failed to start export:", error);
@@ -172,6 +196,12 @@ export default function ExportPage() {
     if (!video) return;
 
     setRegeneratingVideos((prev) => ({ ...prev, [videoId]: true }));
+    const regenJobId = addJob({
+      type: "video_generation",
+      description: `Regenerating video`,
+      projectId: projectId!,
+      projectName: project?.name,
+    });
     try {
       // Get the photo's animation prompt
       const photoRes = await api.get(`/photos/${video.photo_id}`);
@@ -190,9 +220,11 @@ export default function ExportPage() {
       // Reload videos to get updated status
       const videosRes = await api.get<Video[]>(`/projects/${projectId}/videos`);
       setVideos(videosRes.data);
+      completeJob(regenJobId);
     } catch (error) {
       console.error("Failed to regenerate video:", error);
       toast.error("Failed to regenerate video");
+      failJob(regenJobId, "Failed to regenerate video");
     } finally {
       setRegeneratingVideos((prev) => ({ ...prev, [videoId]: false }));
     }
@@ -325,7 +357,10 @@ export default function ExportPage() {
             <span className="text-gray-400 dark:text-gray-500">|</span>
             <span className="text-lg text-gray-600 dark:text-gray-400">Export Video</span>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <JobQueuePanel />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

@@ -9,6 +9,8 @@ import Lightbox from "../components/common/Lightbox";
 import GeneratingTimer from "../components/common/GeneratingTimer";
 import ExportPreviewSection from "../components/export/ExportPreviewSection";
 import ThemeToggle from "../components/common/ThemeToggle";
+import JobQueuePanel from "../components/common/JobQueuePanel";
+import { useJobStore } from "../store/jobStore";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -84,6 +86,12 @@ export default function ProjectPage() {
   const [editedName, setEditedName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Job queue tracking refs
+  const styleJobIdRef = useRef<string | null>(null);
+  const exportJobIdRef = useRef<string | null>(null);
+  const stylingStartTimes = useRef<Record<string, number>>({});
+  const { addJob, completeJob, failJob } = useJobStore();
+
   useEffect(() => {
     if (projectId) {
       loadProject();
@@ -138,6 +146,11 @@ export default function ProjectPage() {
             prev ? { ...prev, status: data.project_status } : prev
           );
           setIsApplyingStyle(false);
+          // Complete the style transfer job
+          if (styleJobIdRef.current) {
+            completeJob(styleJobIdRef.current);
+            styleJobIdRef.current = null;
+          }
           // Reload full project to get final photo states
           loadProject();
         }
@@ -266,6 +279,13 @@ export default function ProjectPage() {
       setProject(projectRes.data);
       setPhotos(photosRes.data.items);
 
+      // Track styling start times for photos already in "styling" status
+      for (const photo of photosRes.data.items) {
+        if (photo.status === "styling" && !stylingStartTimes.current[photo.id]) {
+          stylingStartTimes.current[photo.id] = new Date(photo.created_at).getTime();
+        }
+      }
+
       // Initialize style prompt from project or use default
       const proj = projectRes.data;
       if (proj.style_prompt) {
@@ -387,6 +407,16 @@ export default function ProjectPage() {
     try {
       await api.post(`/projects/${projectId}/stylize`, { style: project.style });
       setProject({ ...project, status: "processing" });
+      styleJobIdRef.current = addJob({
+        type: "style_transfer",
+        description: `Applying ${project.style} style to ${photos.length} photo${photos.length > 1 ? "s" : ""}`,
+        projectId: projectId!,
+        projectName: project.name,
+      });
+      const now = Date.now();
+      for (const photo of photos) {
+        stylingStartTimes.current[photo.id] = now;
+      }
       toast.success("Style transfer started");
     } catch (error) {
       toast.error("Failed to apply style");
@@ -414,6 +444,15 @@ export default function ProjectPage() {
     const styleToUse = style || project?.style;
     if (!styleToUse) return;
 
+    const photoIndex = photos.findIndex((p: Photo) => p.id === photoId);
+    const regenJobId = addJob({
+      type: "style_transfer",
+      description: `Restyling photo ${photoIndex >= 0 ? photoIndex + 1 : ""}`,
+      projectId: projectId!,
+      projectName: project?.name,
+    });
+    stylingStartTimes.current[photoId] = Date.now();
+
     try {
       // Mark photo as styling
       setPhotos((prev) =>
@@ -434,6 +473,7 @@ export default function ProjectPage() {
         if (pollCount > maxPolls) {
           clearInterval(checkStatus);
           setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
+          failJob(regenJobId, "Timed out");
           return;
         }
         try {
@@ -456,15 +496,18 @@ export default function ProjectPage() {
             );
             setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
             loadVariants(photoId);
+            completeJob(regenJobId);
           }
         } catch {
           clearInterval(checkStatus);
           setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
+          failJob(regenJobId, "Failed to check status");
         }
       }, 3000); // Poll every 3 seconds
     } catch (error) {
       console.error("Failed to regenerate photo:", error);
       setLoadingVariants((prev) => ({ ...prev, [photoId]: false }));
+      failJob(regenJobId, "Failed to regenerate photo");
     }
   };
 
@@ -555,6 +598,12 @@ export default function ProjectPage() {
         include_transitions: true,
       });
       setCurrentExport(response.data);
+      exportJobIdRef.current = addJob({
+        type: "export",
+        description: `Exporting final video`,
+        projectId: projectId!,
+        projectName: project?.name,
+      });
       toast.success("Export started");
     } catch (error) {
       toast.error("Failed to start export");
@@ -582,10 +631,18 @@ export default function ProjectPage() {
             setMainExport(response.data);
           }
           setIsExporting(false);
+          if (exportJobIdRef.current) {
+            completeJob(exportJobIdRef.current);
+            exportJobIdRef.current = null;
+          }
           toast.success("Export completed!");
           clearInterval(interval);
         } else if (response.data.status === "failed") {
           setIsExporting(false);
+          if (exportJobIdRef.current) {
+            failJob(exportJobIdRef.current, "Export failed");
+            exportJobIdRef.current = null;
+          }
           toast.error("Export failed");
           clearInterval(interval);
         }
@@ -616,6 +673,13 @@ export default function ProjectPage() {
         prompt: promptToUse,
       });
 
+      const videoJobId = addJob({
+        type: "video_generation",
+        description: `Generating video for photo ${photos.indexOf(photo) + 1}`,
+        projectId: projectId!,
+        projectName: project?.name,
+      });
+
       // Add new video to the list
       setPhotoVideos((prev) => ({
         ...prev,
@@ -632,6 +696,12 @@ export default function ProjectPage() {
             clearInterval(pollInterval);
             setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
 
+            if (status.status === "ready") {
+              completeJob(videoJobId);
+            } else {
+              failJob(videoJobId, "Video generation failed");
+            }
+
             // Reload all videos for this photo to get updated is_selected states
             const videosRes = await api.get<Video[]>(`/photos/${photoId}/videos`);
             setPhotoVideos((prev) => ({ ...prev, [photoId]: videosRes.data }));
@@ -639,6 +709,7 @@ export default function ProjectPage() {
         } catch {
           clearInterval(pollInterval);
           setGeneratingVideos((prev) => ({ ...prev, [photoId]: false }));
+          failJob(videoJobId, "Video status check failed");
         }
       }, 3000);
     } catch (error) {
@@ -686,6 +757,13 @@ export default function ProjectPage() {
     setShowPromptFeedback(false);
     setPromptFeedback("");
 
+    const promptJobId = addJob({
+      type: "prompt_generation",
+      description: `Generating animation prompt`,
+      projectId: projectId!,
+      projectName: project?.name,
+    });
+
     try {
       const response = await api.post<{ photo_id: string; animation_prompt: string }>(
         `/photos/${photoId}/regenerate-prompt`,
@@ -710,9 +788,11 @@ export default function ProjectPage() {
         lastSavedPromptRef.current = newPrompt;
       }
 
+      completeJob(promptJobId);
       toast.success("Prompt regenerated");
     } catch (error) {
       console.error("Failed to regenerate prompt:", error);
+      failJob(promptJobId, "Failed to regenerate prompt");
       toast.error("Failed to regenerate prompt");
       // Revert to failed status
       setPhotos((prev: Photo[]) =>
@@ -835,6 +915,7 @@ export default function ProjectPage() {
                 Compare
               </button>
             </div>
+            <JobQueuePanel />
             <ThemeToggle />
             {canExport ? (
               <Link
@@ -1401,7 +1482,7 @@ export default function ProjectPage() {
                               {photo.status === "styling" || isRegenerating ? (
                                 <span className="flex items-center gap-1">
                                   <div className="animate-spin rounded-full h-3 w-3 border-b border-primary-600"></div>
-                                  <GeneratingTimer label="Generating" />
+                                  <GeneratingTimer label="Generating" startTime={stylingStartTimes.current[photo.id]} />
                                 </span>
                               ) : photo.styled_url ? (
                                 "Regenerate"
@@ -1459,7 +1540,7 @@ export default function ProjectPage() {
                                 <div className="text-center">
                                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
                                   <p className="text-sm text-gray-500">
-                                    <GeneratingTimer label="Generating" />
+                                    <GeneratingTimer label="Generating" startTime={stylingStartTimes.current[photo.id]} />
                                   </p>
                                 </div>
                               </div>

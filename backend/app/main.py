@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -7,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import auth, export, google_photos, photos, projects, styles, videos, websocket
+from app.api.routes import auth, export, google_photos, jobs, photos, projects, styles, videos, websocket
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
@@ -31,9 +32,25 @@ async def lifespan(app: FastAPI):
     settings.exports_path.mkdir(parents=True, exist_ok=True)
 
     logger.info("Storage directories initialized")
+
+    # Reset any jobs left running from a previous server shutdown
+    from app.core.stuck_jobs import (
+        detect_and_reset_stuck_jobs,
+        reset_orphaned_jobs,
+        resume_stuck_style_transfers,
+    )
+
+    await reset_orphaned_jobs()
+    await resume_stuck_style_transfers()
+
+    # Start periodic stuck job detection
+    stuck_job_task = asyncio.create_task(detect_and_reset_stuck_jobs())
+    logger.info("Stuck job detection started")
+
     yield
 
     # Shutdown
+    stuck_job_task.cancel()
     logger.info("Shutting down %s...", settings.app_name)
 
 
@@ -64,6 +81,7 @@ app.include_router(photos.router, prefix="/api", tags=["Photos"])
 app.include_router(styles.router, prefix="/api", tags=["Styles"])
 app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(export.router, prefix="/api", tags=["Export"])
+app.include_router(jobs.router, prefix="/api", tags=["Jobs"])
 app.include_router(google_photos.router, prefix="/api", tags=["Google Photos"])
 app.include_router(websocket.router, tags=["WebSocket"])
 

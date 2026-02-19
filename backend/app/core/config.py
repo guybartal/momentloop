@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     max_concurrent_exports: int = 2
     max_concurrent_prompt_generations: int = 5
 
+    # Stuck job detection (minutes)
+    stuck_job_timeout_minutes: int = 10
+    stuck_export_timeout_minutes: int = 30
+
     # File retention (days)
     export_retention_days: int = 7
     orphan_cleanup_enabled: bool = True
