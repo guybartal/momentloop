@@ -64,6 +64,9 @@ storage/exports/*
 *.log
 logs/
 
+# Worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
