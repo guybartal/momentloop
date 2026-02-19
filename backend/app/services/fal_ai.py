@@ -238,6 +238,56 @@ class FalAIService:
         response = await self._download_with_retry(client, video_url)
         return response.content
 
+    async def generate_image(
+        self,
+        prompt: str,
+        aspect_ratio: str = "16:9",
+        resolution: str = "1K",
+    ) -> bytes:
+        """
+        Generate an image from text using Nano Banana Pro.
+
+        Args:
+            prompt: Text description to generate an image from
+            aspect_ratio: Aspect ratio (e.g. "1:1", "16:9", "9:16")
+            resolution: Image resolution ("1K" or "2K")
+
+        Returns:
+            Image content as bytes
+        """
+        loop = asyncio.get_running_loop()
+
+        model_id = "fal-ai/nano-banana-pro"
+        logger.info("Generating image with %s, prompt: %s", model_id, prompt)
+
+        def run_job():
+            handle = fal_client.submit(
+                model_id,
+                arguments={
+                    "prompt": prompt,
+                    "aspect_ratio": aspect_ratio,
+                    "resolution": resolution,
+                },
+            )
+            return handle.get()
+
+        result = await loop.run_in_executor(_fal_executor, run_job)
+
+        logger.info("Nano Banana Pro response received")
+
+        # Extract image URL from response
+        images = result.get("images", [])
+        if not images:
+            raise RuntimeError(f"No images in response: {result}")
+
+        image_url = images[0].get("url")
+        if not image_url:
+            raise RuntimeError(f"No image URL in response: {result}")
+
+        client = await self._get_http_client()
+        response = await self._download_with_retry(client, image_url)
+        return response.content
+
     async def check_status(self, request_id: str, model: str = "pro") -> dict:
         """Check the status of a video generation request."""
         # Note: With the new fal_client API, we use submit().get() which blocks

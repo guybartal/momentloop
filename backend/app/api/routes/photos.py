@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.photo import (
+    GenerateImageRequest,
     PhotoReorderRequest,
     PhotoResponse,
     PhotoUpdate,
@@ -223,6 +224,78 @@ async def upload_photos(
         asyncio.create_task(generate_prompt_for_photo(photo.id, settings.database_url))
 
     return [photo_to_response(photo) for photo in uploaded_photos]
+
+
+@router.post("/projects/{project_id}/generate-image", response_model=PhotoResponse)
+async def generate_image_from_text(
+    project_id: UUID,
+    request: GenerateImageRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate an image from text using AI and add it to the project."""
+    from app.services.fal_ai import fal_ai_service
+
+    # Verify project ownership
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == current_user.id,
+        )
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Generate image via fal.ai
+    try:
+        image_bytes = await fal_ai_service.generate_image(
+            prompt=request.prompt,
+            aspect_ratio=request.aspect_ratio,
+        )
+    except Exception as e:
+        logger.error("Failed to generate image: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image generation failed: {e}",
+        )
+
+    # Save the generated image
+    relative_path = await storage_service.save_upload(
+        image_bytes, "generated.png", project_id
+    )
+
+    # Get current max position
+    result = await db.execute(
+        select(Photo.position)
+        .where(Photo.project_id == project_id)
+        .order_by(Photo.position.desc())
+        .limit(1)
+    )
+    max_position = result.scalar() or -1
+
+    # Create photo record
+    photo = Photo(
+        project_id=project_id,
+        original_path=relative_path,
+        position=max_position + 1,
+        status="uploaded",
+    )
+    db.add(photo)
+    await db.commit()
+    await db.refresh(photo)
+
+    # Start background prompt generation
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    asyncio.create_task(generate_prompt_for_photo(photo.id, settings.database_url))
+
+    return photo_to_response(photo)
 
 
 @router.get("/projects/{project_id}/photos", response_model=PaginatedResponse[PhotoResponse])

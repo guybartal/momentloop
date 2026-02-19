@@ -40,3 +40,8 @@ class PhotoReorderRequest(BaseModel):
 
 class RegeneratePromptRequest(BaseModel):
     feedback: str | None = None
+
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    aspect_ratio: str = "16:9"
