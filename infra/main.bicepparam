@@ -38,11 +38,11 @@ param storageSkuName = 'Standard_LRS'
 param acrSku = 'Basic'
 
 // ============================================================
-// Secrets — provide via azd env set or --parameters
+// Secrets — read from azd environment variables
 // ============================================================
-// param postgresAdminPassword = ''
-// param googleClientId = ''
-// param googleClientSecret = ''
-// param googleAiApiKey = ''
-// param falKey = ''
-// param jwtSecret = ''
+param postgresAdminPassword = readEnvironmentVariable('POSTGRES_ADMIN_PASSWORD', '')
+param googleClientId = readEnvironmentVariable('GOOGLE_CLIENT_ID', '')
+param googleClientSecret = readEnvironmentVariable('GOOGLE_CLIENT_SECRET', '')
+param googleAiApiKey = readEnvironmentVariable('GOOGLE_AI_API_KEY', '')
+param falKey = readEnvironmentVariable('FAL_KEY', '')
+param jwtSecret = readEnvironmentVariable('JWT_SECRET', '')
