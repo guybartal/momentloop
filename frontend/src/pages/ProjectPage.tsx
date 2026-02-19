@@ -599,10 +599,7 @@ export default function ProjectPage() {
 
   const handleGenerateVideo = async (photoId: string) => {
     const photo = photos.find((p) => p.id === photoId);
-    if (!photo?.styled_url) {
-      toast.error("Photo must be styled first");
-      return;
-    }
+    if (!photo) return;
 
     // Use current animationPrompt state if this is the selected photo, otherwise use saved prompt
     const promptToUse = selectedPhoto?.id === photoId ? animationPrompt : photo.animation_prompt;
@@ -1217,7 +1214,7 @@ export default function ProjectPage() {
                     )}
 
                     {/* Video Generation Section */}
-                    {selectedPhoto.styled_url && (
+                    {(selectedPhoto.styled_url || selectedPhoto.original_url) && (
                       <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Animation Video</h3>
@@ -1521,7 +1518,7 @@ export default function ProjectPage() {
                       )}
 
                       {/* Video Generation Section */}
-                      {photo.styled_url && (
+                      {(photo.styled_url || photo.original_url) && (
                         <div className="mt-6 pt-4 border-t border-gray-200">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="font-medium text-gray-900">Animation Video</h4>
