@@ -91,5 +91,11 @@ async def health_check():
     return {"status": "healthy", "app": settings.app_name}
 
 
-# Mount static files for storage (after API routes to avoid conflicts)
-app.mount("/storage", StaticFiles(directory=str(settings.storage_path)), name="storage")
+# Conditional file serving based on storage backend
+if settings.storage_backend == "azure":
+    # Azure mode: use proxy route to stream from Blob Storage
+    from app.api.routes import storage_proxy
+    app.include_router(storage_proxy.router, prefix="/api", tags=["Storage"])
+else:
+    # Local mode: serve files directly from disk (current behavior)
+    app.mount("/storage", StaticFiles(directory=str(settings.storage_path)), name="storage")
