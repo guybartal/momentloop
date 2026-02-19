@@ -147,6 +147,34 @@ export default function PhotoGallery({
   const [restyleStyle, setRestyleStyle] = useState<StyleType>(currentStyle || "ghibli");
   const [restylePrompt, setRestylePrompt] = useState("");
   const popupRef = useRef<HTMLDivElement>(null);
+  // Track styled URLs to detect when any photo gets a new/updated styled image
+  const prevStyledUrlsRef = useRef<string>("");
+
+  // Auto-switch to styled view when a photo gets newly styled while viewing originals
+  useEffect(() => {
+    const currentStyledUrls = photos
+      .map((p) => `${p.id}:${p.styled_url || ""}`)
+      .join(",");
+    const prev = prevStyledUrlsRef.current;
+
+    if (prev && showOriginal && currentStyledUrls !== prev) {
+      // Check if any photo gained or changed a styled_url
+      const prevMap = new Map(
+        prev.split(",").map((entry: string) => {
+          const [id, ...rest] = entry.split(":");
+          return [id, rest.join(":")] as [string, string];
+        })
+      );
+      const hasNewStyled = photos.some((p) => {
+        const prevUrl = prevMap.get(p.id) || "";
+        return p.styled_url && p.styled_url !== prevUrl;
+      });
+      if (hasNewStyled) {
+        setShowOriginal(false);
+      }
+    }
+    prevStyledUrlsRef.current = currentStyledUrls;
+  }, [photos, showOriginal]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
