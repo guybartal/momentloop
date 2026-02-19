@@ -8,7 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import auth, export, google_photos, jobs, photos, projects, styles, videos, websocket
+from app.api.routes import (
+    auth,
+    export,
+    google_photos,
+    jobs,
+    photos,
+    projects,
+    styles,
+    videos,
+    websocket,
+)
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
@@ -91,5 +101,12 @@ async def health_check():
     return {"status": "healthy", "app": settings.app_name}
 
 
-# Mount static files for storage (after API routes to avoid conflicts)
-app.mount("/storage", StaticFiles(directory=str(settings.storage_path)), name="storage")
+# Conditional file serving based on storage backend
+if settings.storage_backend == "azure":
+    # Azure mode: use proxy route to stream from Blob Storage
+    from app.api.routes import storage_proxy
+
+    app.include_router(storage_proxy.router, prefix="/api", tags=["Storage"])
+else:
+    # Local mode: serve files directly from disk (current behavior)
+    app.mount("/storage", StaticFiles(directory=str(settings.storage_path)), name="storage")

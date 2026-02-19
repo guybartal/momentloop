@@ -322,7 +322,9 @@ async def regenerate_photo_style(
     await db.commit()
 
     # Start background task - use request's custom_prompt if provided, else project's
-    custom_prompt = style_request.custom_prompt if style_request.custom_prompt else project.style_prompt
+    custom_prompt = (
+        style_request.custom_prompt if style_request.custom_prompt else project.style_prompt
+    )
     asyncio.create_task(
         process_style_transfer_for_photo(
             photo_id,

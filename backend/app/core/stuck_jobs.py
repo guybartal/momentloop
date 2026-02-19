@@ -1,9 +1,8 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.database import background_session_maker
@@ -20,7 +19,7 @@ async def reset_orphaned_jobs():
         async with background_session_maker() as db:
             result = await db.execute(select(Job).where(Job.status == "running"))
             orphaned = result.scalars().all()
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for job in orphaned:
                 job.status = "failed"
                 job.error = "Server restarted while job was running"
@@ -41,7 +40,7 @@ async def detect_and_reset_stuck_jobs():
     while True:
         try:
             async with background_session_maker() as db:
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
 
                 # Find stuck non-export jobs
                 default_cutoff = now - default_timeout
@@ -117,9 +116,7 @@ async def resume_stuck_style_transfers():
                     photo.status = "uploaded"
                     continue
 
-                logger.info(
-                    "Resuming style transfer for photo %s (style=%s)", photo.id, style
-                )
+                logger.info("Resuming style transfer for photo %s (style=%s)", photo.id, style)
                 asyncio.create_task(
                     process_style_transfer_for_photo(
                         photo.id,

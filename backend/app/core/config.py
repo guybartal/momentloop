@@ -64,6 +64,19 @@ class Settings(BaseSettings):
     # Storage
     storage_path: Path = Path("./storage")
 
+    # Storage backend: "local" (default) or "azure"
+    storage_backend: str = "local"
+
+    # Azure Blob Storage (only used when storage_backend="azure")
+    azure_storage_account_name: str = ""
+
+    @field_validator("storage_backend")
+    @classmethod
+    def validate_storage_backend(cls, v: str) -> str:
+        if v not in ("local", "azure"):
+            raise ValueError(f"storage_backend must be 'local' or 'azure', got '{v}'")
+        return v
+
     # CORS
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
@@ -82,6 +95,10 @@ class Settings(BaseSettings):
     @property
     def exports_path(self) -> Path:
         return self.storage_path / "exports"
+
+    @property
+    def thumbnails_path(self) -> Path:
+        return self.storage_path / "thumbnails"
 
 
 @lru_cache
